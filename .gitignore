@@ -20,3 +20,5 @@ yarn-error.*
 .env.local
 .env.production
 .vercel
+
+.vercel
