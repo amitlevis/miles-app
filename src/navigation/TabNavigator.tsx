@@ -1,8 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { Colors, Shadows } from '../constants/colors';
-import { FontFamily, FontSize } from '../constants/typography';
+import { Text, StyleSheet, Platform, View } from 'react-native';
+import { Colors } from '../constants/colors';
+import { FontFamily, FontSize, FontWeight } from '../constants/typography';
 
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { TogetherScreen } from '../screens/together/TogetherScreen';
@@ -20,9 +20,11 @@ interface TabIconProps {
 
 function TabIcon({ emoji, label, focused }: TabIconProps) {
   return (
-    <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
+    <View style={[styles.tabItem, focused && styles.tabItemActive]}>
       <Text style={styles.emoji}>{emoji}</Text>
-      <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
+      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -87,33 +89,50 @@ export function TabNavigator() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: Colors.white,
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 28 : 14,
+    left: 16,
+    right: 16,
+    height: 68,
+    backgroundColor: Colors.dark,
+    borderRadius: 34,
     borderTopWidth: 0,
-    height: Platform.OS === 'ios' ? 88 : 68,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    paddingTop: 8,
-    ...Shadows.medium,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.45,
+    shadowRadius: 28,
+    elevation: 20,
+    paddingBottom: 0,
   },
-  tabIcon: {
+  tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 14,
-    minWidth: 56,
+    borderRadius: 22,
+    gap: 3,
+    minWidth: 52,
   },
-  tabIconActive: {
-    backgroundColor: Colors.yellowPale,
+  tabItemActive: {
+    backgroundColor: 'rgba(255,184,48,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,48,0.25)',
   },
-  emoji: { fontSize: 22 },
-  label: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
+  emoji: {
+    fontSize: 20,
+  },
+  tabLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.35)',
     fontFamily: FontFamily.medium,
-    marginTop: 2,
+    fontWeight: FontWeight.medium,
+    letterSpacing: 0.2,
   },
-  labelActive: {
-    color: Colors.charcoal,
+  tabLabelActive: {
+    color: Colors.yellow,
     fontFamily: FontFamily.semibold,
+    fontWeight: FontWeight.semibold,
   },
 });

@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../constants/colors';
-import { FontFamily, FontSize } from '../constants/typography';
+import { FontFamily, FontSize, FontWeight } from '../constants/typography';
 import { Avatar } from './ui/Avatar';
 import { useCoupleStore } from '../store/coupleStore';
 import { getPartnerTime } from '../utils/timeZone';
 
 interface PartnerHeaderProps {
   onAvatarPress?: () => void;
+  dark?: boolean;
 }
 
-export function PartnerHeader({ onAvatarPress }: PartnerHeaderProps) {
+export function PartnerHeader({ onAvatarPress, dark = false }: PartnerHeaderProps) {
   const { user, partner } = useCoupleStore();
   const [partnerTime, setPartnerTime] = useState('');
 
@@ -25,27 +26,29 @@ export function PartnerHeader({ onAvatarPress }: PartnerHeaderProps) {
   if (!user || !partner) return null;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, dark && styles.containerDark]}>
       <View style={styles.side}>
-        <TouchableOpacity onPress={onAvatarPress}>
+        <TouchableOpacity onPress={onAvatarPress} activeOpacity={0.8}>
           <Avatar name={user.name} uri={user.avatar} size={40} online />
         </TouchableOpacity>
-        <View style={styles.info}>
-          <Text style={styles.you}>You</Text>
-          <Text style={styles.name}>{user.name}</Text>
+        <View>
+          <Text style={[styles.roleLabel, dark && styles.mutedDark]}>you</Text>
+          <Text style={[styles.name, dark && styles.nameDark]}>{user.name}</Text>
         </View>
       </View>
 
       <View style={styles.center}>
-        <Text style={styles.heart}>♥</Text>
+        <Text style={[styles.heart, dark && styles.heartDark]}>✦</Text>
       </View>
 
       <View style={[styles.side, styles.sideRight]}>
-        <View style={[styles.info, styles.infoRight]}>
-          <Text style={styles.partnerTime}>{partnerTime}</Text>
-          <Text style={styles.name}>{partner.name}</Text>
+        <View style={styles.rightText}>
+          <Text style={[styles.roleLabel, dark && styles.mutedDark, { textAlign: 'right' }]}>
+            {partnerTime}
+          </Text>
+          <Text style={[styles.name, dark && styles.nameDark]}>{partner.name}</Text>
         </View>
-        <TouchableOpacity onPress={onAvatarPress}>
+        <TouchableOpacity onPress={onAvatarPress} activeOpacity={0.8}>
           <Avatar name={partner.name} uri={partner.avatar} size={40} online />
         </TouchableOpacity>
       </View>
@@ -59,8 +62,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: Colors.cream,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  containerDark: {
+    backgroundColor: 'transparent',
+    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
   side: {
     flexDirection: 'row',
@@ -68,32 +77,24 @@ const styles = StyleSheet.create({
     gap: 10,
     flex: 1,
   },
-  sideRight: {
-    justifyContent: 'flex-end',
-  },
-  info: { flexDirection: 'column' },
-  infoRight: { alignItems: 'flex-end' },
-  you: {
+  sideRight: { justifyContent: 'flex-end' },
+  rightText: { alignItems: 'flex-end' },
+  roleLabel: {
     fontSize: FontSize.xs,
     color: Colors.textMuted,
     fontFamily: FontFamily.regular,
+    textTransform: 'lowercase',
+    letterSpacing: 0.3,
   },
   name: {
     fontSize: FontSize.base,
     color: Colors.charcoal,
     fontFamily: FontFamily.semibold,
+    fontWeight: FontWeight.semibold,
   },
-  partnerTime: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.regular,
-  },
-  center: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heart: {
-    fontSize: 20,
-    color: Colors.coral,
-  },
+  nameDark: { color: Colors.textOnDark },
+  mutedDark: { color: Colors.textOnDarkMuted },
+  center: { alignItems: 'center', paddingHorizontal: 8 },
+  heart: { fontSize: 14, color: Colors.coral },
+  heartDark: { color: 'rgba(255,122,92,0.7)' },
 });

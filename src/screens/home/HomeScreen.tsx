@@ -9,6 +9,7 @@ import {
   Modal,
   Pressable,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { addWeeks, addMonths, format } from 'date-fns';
 import { Colors, Shadows } from '../../constants/colors';
-import { FontFamily, FontSize } from '../../constants/typography';
+import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { PartnerHeader } from '../../components/PartnerHeader';
 import { DistanceMeterWidget } from '../../components/widgets/DistanceMeterWidget';
 import { CountdownWidget } from '../../components/widgets/CountdownWidget';
@@ -31,20 +32,26 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
+const { width } = Dimensions.get('window');
+
 const MOODS = [
-  { emoji: '💭', label: 'Missing you' },
-  { emoji: '☀️', label: 'Good morning' },
-  { emoji: '🌙', label: 'Good night' },
-  { emoji: '🤗', label: 'Need a hug' },
-  { emoji: '😊', label: 'Happy' },
-  { emoji: '💪', label: 'Thinking of you' },
+  { emoji: '💭', label: 'Missing you', color: Colors.lavender },
+  { emoji: '☀️', label: 'Good morning', color: Colors.yellow },
+  { emoji: '🌙', label: 'Good night', color: '#4A6FA5' },
+  { emoji: '🤗', label: 'Need a hug', color: Colors.coral },
+  { emoji: '😊', label: 'Happy', color: Colors.success },
+  { emoji: '💪', label: 'Thinking of you', color: Colors.yellowDeep },
 ];
 
+const RING_SIZE = 220;
+const RING_CENTER = RING_SIZE / 2;
+const RING_RADIUS = 78;
+
 const QUICK_ACTIONS = [
-  { emoji: '🎬', label: 'Watch', route: 'WatchTogether' as const },
-  { emoji: '🎵', label: 'Listen', route: 'ListenTogether' as const },
-  { emoji: '🎮', label: 'Games', route: 'Games' as const },
-  { emoji: '🎁', label: 'Gift', route: 'Shop' as const },
+  { emoji: '🎬', label: 'Watch', route: 'WatchTogether' as const, color: '#FF7A5C' },
+  { emoji: '🎵', label: 'Listen', route: 'ListenTogether' as const, color: Colors.lavenderDark },
+  { emoji: '🎮', label: 'Games', route: 'Games' as const, color: '#4A9ABF' },
+  { emoji: '🎁', label: 'Gift', route: 'Shop' as const, color: Colors.yellow },
 ];
 
 const DATE_PRESETS = [
@@ -63,6 +70,7 @@ export function HomeScreen() {
   const [partnerTime, setPartnerTime] = useState('');
   const [partnerDate, setPartnerDate] = useState('');
   const [moodSent, setMoodSent] = useState<string | null>(null);
+  const [selectedMood, setSelectedMood] = useState<(typeof MOODS)[0] | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [hasDoodle, setHasDoodle] = useState(false);
   const [togetherSince] = useState(() => new Date());
@@ -71,8 +79,8 @@ export function HomeScreen() {
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showDoodleModal, setShowDoodleModal] = useState(false);
 
-  // Heartbeat animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const moodGlow = useRef(new Animated.Value(0)).current;
   const heartbeatLoop = useRef<Animated.CompositeAnimation | null>(null);
   const hapticTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -95,24 +103,27 @@ export function HomeScreen() {
 
   const sendMood = async (mood: (typeof MOODS)[0]) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedMood(mood);
     setMoodSent(mood.label);
-    setTimeout(() => setMoodSent(null), 2500);
+    moodGlow.setValue(0);
+    Animated.timing(moodGlow, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    setTimeout(() => setMoodSent(null), 3000);
   };
 
   const startHeartbeat = async () => {
     heartbeatLoop.current = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.35, duration: 200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 180, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0, duration: 280, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.22, duration: 160, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1.0, duration: 300, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1.18, duration: 180, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1.0, duration: 320, useNativeDriver: true }),
       ])
     );
     heartbeatLoop.current.start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     hapticTimer.current = setInterval(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 220);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 200);
     }, 1000);
   };
 
@@ -142,43 +153,46 @@ export function HomeScreen() {
 
   if (!user || !partner) return null;
 
-  // ── Together mode — full-screen cozy transformation ──────────────────────
+  // ── Together mode ──────────────────────────────────────────────────────────
   if (togetherMode) {
     return (
-      <LinearGradient colors={['#EDE0FF', '#FFD6E8', '#FFF4D6']} locations={[0, 0.5, 1]} style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: Colors.obsidian }}>
+        <LinearGradient
+          colors={['#1A0F08', '#2D1810', '#1A0F08']}
+          locations={[0, 0.5, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        {/* Warm glow */}
+        <View style={styles.togetherGlow} pointerEvents="none" />
+
         <SafeAreaView style={styles.togetherSafe}>
           <View style={styles.togetherContent}>
             <View style={styles.togetherTop}>
-              <Text style={styles.togetherBigEmoji}>🫶</Text>
               <Text style={styles.togetherNames}>
-                {user.name} & {partner.name}
+                {user.name}{'\n'}& {partner.name}
               </Text>
-              <Text style={styles.togetherTagline}>You're together right now</Text>
-              <View style={styles.togetherDateBadge}>
+              <View style={styles.zeroMilesRow}>
+                <Text style={styles.zeroNumber}>0</Text>
+                <Text style={styles.zeroUnit}>miles apart</Text>
+              </View>
+              <Text style={styles.togetherTagline}>The distance is zero ♥</Text>
+              <View style={styles.togetherDateChip}>
                 <Text style={styles.togetherDateText}>Since {format(togetherSince, 'MMMM d')}</Text>
               </View>
             </View>
 
-            <View style={styles.togetherCards}>
-              <View style={[styles.togetherCard, Shadows.small]}>
-                <Text style={styles.togetherCardLabel}>How are you feeling?</Text>
-                <View style={styles.togetherEmojiRow}>
-                  {['😍', '🥰', '😊', '💃', '🎉', '☺️'].map((e) => (
-                    <TouchableOpacity
-                      key={e}
-                      onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={{ fontSize: 30 }}>{e}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={[styles.togetherCard, Shadows.small]}>
-                <Text style={styles.zeroMilesNumber}>0</Text>
-                <Text style={styles.zeroMilesLabel}>miles apart</Text>
-                <Text style={styles.zeroMilesSub}>The distance is zero ♥</Text>
+            <View style={styles.togetherCard}>
+              <Text style={styles.togetherCardLabel}>How are you feeling?</Text>
+              <View style={styles.togetherEmojiRow}>
+                {['😍', '🥰', '😊', '💃', '🎉', '☺️'].map((e) => (
+                  <TouchableOpacity
+                    key={e}
+                    onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.togetherEmoji}>{e}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
 
@@ -191,23 +205,37 @@ export function HomeScreen() {
             </TouchableOpacity>
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
-  // ── Normal home screen ────────────────────────────────────────────────────
+  // ── Normal home screen ─────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe}>
       <PartnerHeader />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-        {/* Partner time */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Partner time strip */}
         <View style={styles.timeBanner}>
-          <Text style={styles.timeBannerText}>
-            {partner.name}'s time:{' '}
-            <Text style={styles.timeBold}>{partnerTime}</Text>
-          </Text>
-          <Text style={styles.dateBannerText}>{partnerDate}</Text>
+          <LinearGradient
+            colors={[Colors.dark, Colors.darkCard]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.timeBannerInner}
+          >
+            <View>
+              <Text style={styles.timeBannerLabel}>{partner.name}'s time</Text>
+              <Text style={styles.timeBannerTime}>{partnerTime}</Text>
+            </View>
+            <View style={styles.timeBannerRight}>
+              <Text style={styles.timeBannerDate}>{partnerDate}</Text>
+              <View style={styles.onlineDot} />
+            </View>
+          </LinearGradient>
         </View>
 
         {/* Widget grid */}
@@ -233,17 +261,17 @@ export function HomeScreen() {
           />
         </View>
 
-        {/* Together toggle — centered & prominent */}
+        {/* Together banner */}
         <TouchableOpacity
-          style={styles.togetherBanner}
+          style={styles.togetherBannerWrap}
           onPress={() => setTogetherMode(true)}
           activeOpacity={0.85}
         >
           <LinearGradient
-            colors={['#EDE0FF', '#FFD6E8']}
+            colors={['#2D1F10', '#1F1510']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.togetherBannerGradient}
+            style={styles.togetherBanner}
           >
             <Text style={styles.togetherBannerEmoji}>🫶</Text>
             <View style={{ flex: 1 }}>
@@ -254,27 +282,49 @@ export function HomeScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Mood share */}
+        {/* Mood ring */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Send a vibe</Text>
-          {moodSent && (
-            <View style={styles.moodSentBadge}>
-              <Text style={styles.moodSentText}>Sent to {partner.name} ♥</Text>
-            </View>
-          )}
-          <View style={styles.moodGrid}>
-            {MOODS.map((m) => (
-              <TouchableOpacity
-                key={m.label}
-                style={[styles.moodBtn, moodSent === m.label && styles.moodBtnActive]}
-                onPress={() => sendMood(m)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.moodEmoji}>{m.emoji}</Text>
-                <Text style={styles.moodLabel}>{m.label}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Send a vibe</Text>
+            {moodSent && (
+              <Animated.Text style={[styles.moodSentBadge, { opacity: moodGlow }]}>
+                sent to {partner.name} ♥
+              </Animated.Text>
+            )}
           </View>
+
+          <View style={styles.moodRingContainer}>
+            {/* Center orb */}
+            <View style={styles.moodCenterOrb}>
+              <Text style={styles.moodCenterEmoji}>
+                {selectedMood ? selectedMood.emoji : '♥'}
+              </Text>
+            </View>
+
+            {/* Mood buttons in circle */}
+            {MOODS.map((mood, i) => {
+              const angle = (i / MOODS.length) * 2 * Math.PI - Math.PI / 2;
+              const x = RING_CENTER + Math.cos(angle) * RING_RADIUS - 28;
+              const y = RING_CENTER + Math.sin(angle) * RING_RADIUS - 28;
+              const isActive = selectedMood?.label === mood.label;
+              return (
+                <TouchableOpacity
+                  key={mood.label}
+                  style={[
+                    styles.moodOrbBtn,
+                    { left: x, top: y },
+                    isActive && { borderColor: mood.color, backgroundColor: `${mood.color}18` },
+                  ]}
+                  onPress={() => sendMood(mood)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.moodOrbEmoji}>{mood.emoji}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.moodHint}>Tap an emoji to send your vibe</Text>
         </View>
 
         {/* Quick actions */}
@@ -288,7 +338,7 @@ export function HomeScreen() {
                 onPress={() => navigation.navigate(a.route)}
                 activeOpacity={0.8}
               >
-                <View style={styles.quickActionIcon}>
+                <View style={[styles.quickActionCard, { borderColor: `${a.color}30` }]}>
                   <Text style={styles.quickActionEmoji}>{a.emoji}</Text>
                 </View>
                 <Text style={styles.quickActionLabel}>{a.label}</Text>
@@ -298,30 +348,43 @@ export function HomeScreen() {
         </View>
 
         {/* Heartbeat */}
-        <View style={[styles.heartbeatCard, Shadows.small]}>
-          <View style={styles.heartbeatRow}>
-            <Animated.Text style={[styles.heartbeatEmoji, { transform: [{ scale: pulseAnim }] }]}>
-              💓
-            </Animated.Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heartbeatTitle}>Send your heartbeat</Text>
-              <Text style={styles.heartbeatSub}>{partner.name} feels it as a vibration</Text>
+        <View style={styles.heartbeatCard}>
+          <LinearGradient
+            colors={['#2A100A', '#1F0C08']}
+            style={styles.heartbeatGradient}
+          >
+            <View style={styles.heartbeatRow}>
+              <Animated.Text
+                style={[styles.heartbeatGlyph, { transform: [{ scale: pulseAnim }] }]}
+              >
+                💓
+              </Animated.Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heartbeatTitle}>Send your heartbeat</Text>
+                <Text style={styles.heartbeatSub}>
+                  {partner.name} feels it as a vibration
+                </Text>
+              </View>
             </View>
-          </View>
-          <Pressable style={styles.heartbeatBtn} onPressIn={startHeartbeat} onPressOut={stopHeartbeat}>
-            <Text style={styles.heartbeatBtnText}>Hold to send 💓</Text>
-          </Pressable>
+            <Pressable
+              style={styles.heartbeatBtn}
+              onPressIn={startHeartbeat}
+              onPressOut={stopHeartbeat}
+            >
+              <Text style={styles.heartbeatBtnText}>Hold to send 💓</Text>
+            </Pressable>
+          </LinearGradient>
         </View>
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* ── Date picker modal ── */}
+      {/* Date picker modal */}
       <Modal visible={showDateModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Set your reunion date 📅</Text>
+            <Text style={styles.modalTitle}>Set reunion date</Text>
             <Text style={styles.modalSub}>When are you next seeing {partner.name}?</Text>
             <View style={styles.datePresetList}>
               {DATE_PRESETS.map((p) => (
@@ -335,40 +398,56 @@ export function HomeScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.datePresetLabel}>{p.label}</Text>
-                  <Text style={styles.datePresetValue}>{format(p.getDate(), 'MMM d, yyyy')}</Text>
+                  <Text style={styles.datePresetValue}>
+                    {format(p.getDate(), 'MMM d, yyyy')}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowDateModal(false)}>
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => setShowDateModal(false)}
+            >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ── Photo options modal ── */}
+      {/* Photo options modal */}
       <Modal visible={showPhotoOptions} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Send a photo 📸</Text>
+            <Text style={styles.modalTitle}>Send a photo</Text>
             <Text style={styles.modalSub}>It'll appear on {partner.name}'s home screen</Text>
-            <TouchableOpacity style={styles.photoOption} onPress={handleTakePhoto} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.photoOption}
+              onPress={handleTakePhoto}
+              activeOpacity={0.8}
+            >
               <Text style={styles.photoOptionEmoji}>📷</Text>
               <Text style={styles.photoOptionText}>Take a photo now</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.photoOption} onPress={handlePickPhoto} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.photoOption}
+              onPress={handlePickPhoto}
+              activeOpacity={0.8}
+            >
               <Text style={styles.photoOptionEmoji}>🖼️</Text>
               <Text style={styles.photoOptionText}>Choose from library</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowPhotoOptions(false)}>
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => setShowPhotoOptions(false)}
+            >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ── Drawing canvas modal ── */}
+      {/* Drawing modal */}
       <Modal visible={showDoodleModal} animationType="slide">
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
           <DrawingCanvas
@@ -390,191 +469,411 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: 32 },
 
-  // ── Together mode ─────────────────────────────────────────────────────────
+  // ── Together mode ──────────────────────────────────────────────────────────
+  togetherGlow: {
+    position: 'absolute',
+    top: -100,
+    left: -50,
+    width: 500,
+    height: 500,
+    borderRadius: 250,
+    backgroundColor: 'rgba(255,184,48,0.06)',
+  },
   togetherSafe: { flex: 1 },
-  togetherContent: { flex: 1, paddingHorizontal: 28, paddingTop: 40, paddingBottom: 36, justifyContent: 'space-between' },
-  togetherTop: { alignItems: 'center', gap: 10 },
-  togetherBigEmoji: { fontSize: 80, marginBottom: 4 },
-  togetherNames: { fontSize: 32, color: Colors.charcoal, fontFamily: FontFamily.bold, textAlign: 'center' },
-  togetherTagline: { fontSize: FontSize.lg, color: Colors.textSecondary, fontFamily: FontFamily.regular },
-  togetherDateBadge: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 100,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginTop: 4,
-  },
-  togetherDateText: { fontSize: FontSize.sm, color: Colors.charcoal, fontFamily: FontFamily.medium },
-  togetherCards: { gap: 14 },
-  togetherCard: {
-    backgroundColor: 'rgba(255,255,255,0.75)',
-    borderRadius: 24,
-    padding: 20,
-    alignItems: 'center',
-    gap: 12,
-  },
-  togetherCardLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontFamily: FontFamily.medium },
-  togetherEmojiRow: { flexDirection: 'row', gap: 14 },
-  zeroMilesNumber: { fontSize: 52, color: Colors.charcoal, fontFamily: FontFamily.bold, lineHeight: 58 },
-  zeroMilesLabel: { fontSize: FontSize.lg, color: Colors.charcoal, fontFamily: FontFamily.semibold },
-  zeroMilesSub: { fontSize: FontSize.sm, color: Colors.textSecondary, fontFamily: FontFamily.regular },
-  endTogetherBtn: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 100,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(44,44,44,0.15)',
-  },
-  endTogetherText: { fontSize: FontSize.base, color: Colors.charcoal, fontFamily: FontFamily.semibold },
-
-  // ── Normal screen ─────────────────────────────────────────────────────────
-  timeBanner: {
-    backgroundColor: Colors.yellowPale,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    flexDirection: 'row',
+  togetherContent: {
+    flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: 52,
+    paddingBottom: 44,
     justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.yellowLight,
   },
-  timeBannerText: { fontSize: FontSize.sm, color: Colors.charcoal, fontFamily: FontFamily.regular },
-  timeBold: { fontFamily: FontFamily.bold },
-  dateBannerText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontFamily: FontFamily.regular },
+  togetherTop: { alignItems: 'center', gap: 16 },
+  togetherNames: {
+    fontSize: FontSize['3xl'],
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.black,
+    textAlign: 'center',
+    lineHeight: FontSize['3xl'] * 1.2,
+    letterSpacing: -1,
+  },
+  zeroMilesRow: { alignItems: 'center', gap: 4 },
+  zeroNumber: {
+    fontSize: FontSize['5xl'],
+    color: Colors.yellow,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.black,
+    letterSpacing: -4,
+    lineHeight: FontSize['5xl'] * 1.0,
+  },
+  zeroUnit: {
+    fontSize: FontSize.lg,
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+  togetherTagline: {
+    fontSize: FontSize.md,
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: FontFamily.regular,
+  },
+  togetherDateChip: {
+    backgroundColor: 'rgba(255,184,48,0.12)',
+    borderRadius: 100,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,48,0.22)',
+  },
+  togetherDateText: {
+    fontSize: FontSize.sm,
+    color: Colors.yellow,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+  togetherCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 28,
+    padding: 24,
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  togetherCardLabel: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.45)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+  togetherEmojiRow: { flexDirection: 'row', gap: 16 },
+  togetherEmoji: { fontSize: 32 },
+  endTogetherBtn: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 100,
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  endTogetherText: {
+    fontSize: FontSize.base,
+    color: 'rgba(255,255,255,0.6)',
+    fontFamily: FontFamily.semibold,
+    fontWeight: FontWeight.semibold,
+  },
+
+  // ── Normal screen ──────────────────────────────────────────────────────────
+  timeBanner: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  timeBannerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  timeBannerLabel: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.38)',
+    fontFamily: FontFamily.regular,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  timeBannerTime: {
+    fontSize: FontSize.xl,
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+    letterSpacing: -0.5,
+  },
+  timeBannerRight: { alignItems: 'flex-end', gap: 6 },
+  timeBannerDate: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.42)',
+    fontFamily: FontFamily.regular,
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.success,
+    shadowColor: Colors.success,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+  },
 
   widgetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 16,
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
 
-  togetherBanner: { marginHorizontal: 20, marginBottom: 24, borderRadius: 22, overflow: 'hidden', ...Shadows.small },
-  togetherBannerGradient: {
+  togetherBannerWrap: {
+    marginHorizontal: 16,
+    marginBottom: 28,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,48,0.14)',
+    shadowColor: Colors.yellow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  togetherBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 18,
     paddingHorizontal: 20,
     gap: 14,
   },
-  togetherBannerEmoji: { fontSize: 30 },
-  togetherBannerTitle: { fontSize: FontSize.base, color: Colors.charcoal, fontFamily: FontFamily.bold },
-  togetherBannerSub: { fontSize: FontSize.sm, color: Colors.charcoal, fontFamily: FontFamily.regular, opacity: 0.7, marginTop: 2 },
-  togetherBannerArrow: { fontSize: FontSize.lg, color: Colors.charcoal, opacity: 0.5 },
-
-  section: { paddingHorizontal: 20, marginBottom: 28 },
-  sectionTitle: { fontSize: FontSize.md, color: Colors.charcoal, fontFamily: FontFamily.bold, marginBottom: 14 },
-
-  moodSentBadge: {
-    backgroundColor: Colors.yellowPale,
-    borderRadius: 100,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
+  togetherBannerEmoji: { fontSize: 28 },
+  togetherBannerTitle: {
+    fontSize: FontSize.base,
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
   },
-  moodSentText: { fontSize: FontSize.sm, color: Colors.charcoal, fontFamily: FontFamily.medium },
-  moodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  moodBtn: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  togetherBannerSub: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.42)',
+    fontFamily: FontFamily.regular,
+    marginTop: 2,
+  },
+  togetherBannerArrow: {
+    fontSize: FontSize.lg,
+    color: 'rgba(255,184,48,0.5)',
+  },
+
+  section: { paddingHorizontal: 16, marginBottom: 32 },
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: FontSize.base,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  moodSentBadge: {
+    fontSize: FontSize.xs,
+    color: Colors.coral,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+
+  // Mood ring
+  moodRingContainer: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignSelf: 'center',
+    position: 'relative',
+  },
+  moodCenterOrb: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.dark,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,184,48,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    left: RING_CENTER - 30,
+    top: RING_CENTER - 30,
+    shadowColor: Colors.yellow,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  moodCenterEmoji: { fontSize: 26 },
+  moodOrbBtn: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.white,
     borderWidth: 1.5,
     borderColor: Colors.border,
-    ...Shadows.small,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2C2C2C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  moodBtnActive: { backgroundColor: Colors.yellowPale, borderColor: Colors.yellow },
-  moodEmoji: { fontSize: 18 },
-  moodLabel: { fontSize: FontSize.sm, color: Colors.charcoal, fontFamily: FontFamily.medium },
+  moodOrbEmoji: { fontSize: 24 },
+  moodHint: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontFamily: FontFamily.regular,
+    textAlign: 'center',
+    marginTop: 8,
+  },
 
-  quickActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   quickAction: { alignItems: 'center', flex: 1 },
-  quickActionIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
+  quickActionCard: {
+    width: (width - 32 - 30) / 4,
+    height: (width - 32 - 30) / 4,
+    borderRadius: 22,
+    backgroundColor: Colors.dark,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
-    ...Shadows.small,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  quickActionEmoji: { fontSize: 28 },
-  quickActionLabel: { fontSize: FontSize.sm, color: Colors.charcoal, fontFamily: FontFamily.medium },
+  quickActionEmoji: { fontSize: 26 },
+  quickActionLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
 
   heartbeatCard: {
-    marginHorizontal: 20,
-    backgroundColor: '#FFF0EC',
-    borderRadius: 24,
-    padding: 20,
-    gap: 16,
-    borderWidth: 1.5,
-    borderColor: Colors.coralLight,
+    marginHorizontal: 16,
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,122,92,0.2)',
+    shadowColor: Colors.coral,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  heartbeatRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  heartbeatEmoji: { fontSize: 38 },
-  heartbeatTitle: { fontSize: FontSize.base, color: Colors.charcoal, fontFamily: FontFamily.semibold },
-  heartbeatSub: { fontSize: FontSize.sm, color: Colors.textSecondary, fontFamily: FontFamily.regular, marginTop: 2 },
+  heartbeatGradient: { padding: 22, gap: 16 },
+  heartbeatRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  heartbeatGlyph: { fontSize: 44 },
+  heartbeatTitle: {
+    fontSize: FontSize.base,
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+  },
+  heartbeatSub: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.45)',
+    fontFamily: FontFamily.regular,
+    marginTop: 2,
+  },
   heartbeatBtn: {
     backgroundColor: Colors.coral,
     borderRadius: 100,
-    paddingVertical: 14,
+    paddingVertical: 15,
     alignItems: 'center',
-    ...Shadows.small,
+    shadowColor: Colors.coral,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
   },
-  heartbeatBtnText: { fontSize: FontSize.base, color: Colors.white, fontFamily: FontFamily.semibold },
+  heartbeatBtnText: {
+    fontSize: FontSize.base,
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+  },
 
-  // ── Modals ────────────────────────────────────────────────────────────────
+  // ── Modals ─────────────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    backgroundColor: Colors.cream,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
     paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 12,
+    paddingBottom: 44,
+    paddingTop: 14,
   },
   modalHandle: {
-    width: 40,
+    width: 36,
     height: 4,
     backgroundColor: Colors.border,
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 22,
   },
-  modalTitle: { fontSize: FontSize.xl, color: Colors.charcoal, fontFamily: FontFamily.bold, marginBottom: 6 },
-  modalSub: { fontSize: FontSize.sm, color: Colors.textSecondary, fontFamily: FontFamily.regular, marginBottom: 24 },
-
+  modalTitle: {
+    fontSize: FontSize.xl,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+    marginBottom: 6,
+    letterSpacing: -0.3,
+  },
+  modalSub: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.regular,
+    marginBottom: 24,
+    lineHeight: 20,
+  },
   datePresetList: { gap: 10, marginBottom: 16 },
   datePresetRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.creamDark,
+    backgroundColor: Colors.white,
     borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 16,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  datePresetLabel: { fontSize: FontSize.base, color: Colors.charcoal, fontFamily: FontFamily.semibold },
-  datePresetValue: { fontSize: FontSize.sm, color: Colors.textSecondary, fontFamily: FontFamily.regular },
-
+  datePresetLabel: {
+    fontSize: FontSize.base,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.semibold,
+    fontWeight: FontWeight.semibold,
+  },
+  datePresetValue: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.regular,
+  },
   photoOption: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    backgroundColor: Colors.creamDark,
+    backgroundColor: Colors.white,
     borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 18,
@@ -582,9 +881,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  photoOptionEmoji: { fontSize: 28 },
-  photoOptionText: { fontSize: FontSize.base, color: Colors.charcoal, fontFamily: FontFamily.semibold },
-
+  photoOptionEmoji: { fontSize: 26 },
+  photoOptionText: {
+    fontSize: FontSize.base,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.semibold,
+    fontWeight: FontWeight.semibold,
+  },
   modalCancelBtn: {
     paddingVertical: 16,
     alignItems: 'center',
@@ -592,6 +895,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.border,
     marginTop: 4,
+    backgroundColor: Colors.white,
   },
-  modalCancelText: { fontSize: FontSize.base, color: Colors.textSecondary, fontFamily: FontFamily.medium },
+  modalCancelText: {
+    fontSize: FontSize.base,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
 });

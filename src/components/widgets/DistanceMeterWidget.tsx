@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Shadows } from '../../constants/colors';
-import { FontFamily, FontSize } from '../../constants/typography';
+import Svg, { Circle, G } from 'react-native-svg';
+import { Colors } from '../../constants/colors';
+import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { formatDistance } from '../../utils/distance';
 
 interface DistanceMeterWidgetProps {
@@ -11,82 +11,187 @@ interface DistanceMeterWidgetProps {
   size?: 'small' | 'large';
 }
 
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const MAX_DISTANCE = 12450;
+
 export function DistanceMeterWidget({
   miles,
   isApproaching = false,
   size = 'large',
 }: DistanceMeterWidgetProps) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!isApproaching) return;
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.04, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-    return () => pulseAnim.stopAnimation();
-  }, [isApproaching, pulseAnim]);
+  const arcAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.4)).current;
+  const scaleAnim = useRef(new Animated.Value(0.88)).current;
 
   const isSmall = size === 'small';
+  const containerSize = isSmall ? 80 : 164;
+  const radius = isSmall ? 28 : 60;
+  const strokeWidth = isSmall ? 3 : 5;
+  const cx = containerSize / 2;
+  const cy = containerSize / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.min(Math.max(miles, 1) / MAX_DISTANCE, 1);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(arcAnim, {
+        toValue: pct,
+        duration: 1400,
+        delay: 300,
+        useNativeDriver: false,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        delay: 100,
+        useNativeDriver: true,
+        speed: 10,
+        bounciness: 6,
+      }),
+    ]).start();
+
+    if (isApproaching) {
+      const glowLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0.4, duration: 900, useNativeDriver: true }),
+        ])
+      );
+      glowLoop.start();
+      return () => glowLoop.stop();
+    }
+  }, [miles, isApproaching]);
+
+  const strokeDashoffset = arcAnim.interpolate({
+    inputRange: [0, pct > 0 ? pct : 0.001],
+    outputRange: [circumference, circumference * (1 - pct)],
+    extrapolate: 'clamp',
+  });
+
+  const arcColor = isApproaching ? Colors.coral : Colors.yellow;
 
   return (
-    <Animated.View style={[isApproaching && { transform: [{ scale: pulseAnim }] }]}>
-      <LinearGradient
-        colors={isApproaching ? ['#FF7A5C', '#FFB830'] : ['#FFB830', '#FFD470']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.container, isSmall ? styles.small : styles.large, Shadows.yellow]}
+    <Animated.View
+      style={[
+        isSmall ? styles.cardSmall : styles.cardLarge,
+        { transform: [{ scale: scaleAnim }] },
+      ]}
+    >
+      <Svg
+        width={containerSize}
+        height={containerSize}
+        style={StyleSheet.absoluteFill}
       >
-        <Text style={[styles.icon, isSmall && styles.iconSmall]}>
-          {isApproaching ? '✈️' : '🌍'}
-        </Text>
-        <Text style={[styles.label, isSmall && styles.labelSmall]}>
-          {isApproaching ? 'Getting closer...' : 'Apart by'}
-        </Text>
-        <Text style={[styles.distance, isSmall && styles.distanceSmall]}>
-          {formatDistance(miles)}
-        </Text>
-        {isApproaching && (
-          <Text style={styles.approachingLabel}>On the way ♥</Text>
-        )}
-      </LinearGradient>
+        <G rotation="-90" origin={`${cx},${cy}`}>
+          <Circle
+            cx={cx}
+            cy={cy}
+            r={radius}
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          <AnimatedCircle
+            cx={cx}
+            cy={cy}
+            r={radius}
+            stroke={arcColor}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+          />
+        </G>
+      </Svg>
+
+      {!isSmall ? (
+        <View style={styles.textCenter}>
+          <Text style={styles.labelSmallCap}>
+            {isApproaching ? 'getting closer' : 'apart by'}
+          </Text>
+          <Text style={styles.distanceLarge}>{formatDistance(miles)}</Text>
+          {isApproaching && (
+            <Animated.Text style={[styles.approachTag, { opacity: glowAnim }]}>
+              on the way ♥
+            </Animated.Text>
+          )}
+        </View>
+      ) : (
+        <View style={styles.textCenterSmall}>
+          <Text style={styles.distanceSmall}>
+            {miles >= 1000 ? `${Math.round(miles / 100) / 10}k` : miles}
+          </Text>
+          <Text style={styles.milesLabel}>mi</Text>
+        </View>
+      )}
     </Animated.View>
   );
 }
 
+const baseCard: object = {
+  backgroundColor: Colors.dark,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.07)',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.38,
+  shadowRadius: 18,
+  elevation: 10,
+};
+
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: 24,
+  cardLarge: {
+    ...baseCard,
+    width: 164,
+    height: 164,
+    borderRadius: 36,
+  },
+  cardSmall: {
+    ...baseCard,
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+  },
+  textCenter: {
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  large: { width: 160, height: 160, padding: 16 },
-  small: { width: 80, height: 80, padding: 8, borderRadius: 16 },
-  icon: { fontSize: 32, marginBottom: 6 },
-  iconSmall: { fontSize: 18, marginBottom: 2 },
-  label: {
-    fontSize: FontSize.xs,
-    color: Colors.white,
+  labelSmallCap: {
+    fontSize: 8,
+    color: 'rgba(255,255,255,0.35)',
     fontFamily: FontFamily.medium,
-    opacity: 0.9,
-    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 3,
   },
-  labelSmall: { fontSize: 9 },
-  distance: {
+  distanceLarge: {
     fontSize: FontSize.md,
     color: Colors.white,
     fontFamily: FontFamily.bold,
-    textAlign: 'center',
-    marginTop: 2,
+    fontWeight: FontWeight.bold,
+    letterSpacing: -0.5,
   },
-  distanceSmall: { fontSize: FontSize.xs },
-  approachingLabel: {
-    fontSize: FontSize.xs,
-    color: Colors.white,
+  approachTag: {
+    fontSize: 9,
+    color: Colors.coral,
     fontFamily: FontFamily.medium,
-    marginTop: 4,
-    opacity: 0.85,
+    marginTop: 3,
+    letterSpacing: 0.3,
+  },
+  textCenterSmall: { alignItems: 'center' },
+  distanceSmall: {
+    fontSize: FontSize.sm,
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+    lineHeight: 17,
+  },
+  milesLabel: {
+    fontSize: 8,
+    color: 'rgba(255,255,255,0.35)',
+    fontFamily: FontFamily.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
 });
