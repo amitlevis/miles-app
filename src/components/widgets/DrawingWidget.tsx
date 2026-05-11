@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors, Shadows } from '../../constants/colors';
-import { FontFamily, FontSize } from '../../constants/typography';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { Colors } from '../../constants/colors';
+import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 
 interface DrawingWidgetProps {
   existingDrawing?: string | null;
@@ -19,97 +19,175 @@ export function DrawingWidget({
   onPress,
 }: DrawingWidgetProps) {
   const isSmall = size === 'small';
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
 
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      delay: 200,
+      useNativeDriver: true,
+      speed: 10,
+      bounciness: 6,
+    }).start();
+  }, []);
+
+  // ── Small variant ────────────────────────────────────────────────────────
   if (isSmall) {
     return (
-      <View style={[styles.container, styles.small, styles.emptySmall]}>
-        <Text style={{ fontSize: 22 }}>✏️</Text>
-      </View>
+      <Animated.View
+        style={[
+          styles.cardSmall,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
+      >
+        <View style={styles.emptyFillSmall}>
+          <Text style={styles.smallGlyph}>✏️</Text>
+        </View>
+      </Animated.View>
     );
   }
 
+  // ── Has drawing ──────────────────────────────────────────────────────────
   if (existingDrawing && mode === 'view') {
     return (
-      <TouchableOpacity
-        onPress={onPress}
-        style={[styles.container, styles.large, Shadows.small]}
-        activeOpacity={0.8}
+      <Animated.View
+        style={[
+          styles.cardLarge,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
       >
-        <View style={styles.drawingPreview}>
-          <Text style={styles.drawingEmoji}>✏️</Text>
-          <Text style={styles.drawingLabel}>You left a doodle ♥</Text>
-          <Text style={styles.drawingTap}>Tap to edit</Text>
-        </View>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onPress}
+          style={styles.drawingFill}
+          activeOpacity={0.85}
+        >
+          <View style={styles.iconRing}>
+            <Text style={styles.drawingGlyph}>✏️</Text>
+          </View>
+          <Text style={styles.drawingLabel}>Doodle{'\n'}left ♥</Text>
+          <Text style={styles.drawingTap}>tap to edit</Text>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
+  // ── Empty state ──────────────────────────────────────────────────────────
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.container, styles.large, styles.empty, Shadows.small]}
-      activeOpacity={0.8}
+    <Animated.View
+      style={[
+        styles.cardLarge,
+        { transform: [{ scale: scaleAnim }] },
+      ]}
     >
-      <Text style={styles.emptyIcon}>✏️</Text>
-      <Text style={styles.emptyTitle}>Leave a doodle</Text>
-      <Text style={styles.emptySubtitle}>It'll appear on {partnerName}'s screen</Text>
-    </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onPress}
+        style={styles.emptyFill}
+        activeOpacity={0.85}
+      >
+        <View style={styles.iconRing}>
+          <Text style={styles.emptyGlyph}>✏️</Text>
+        </View>
+        <Text style={styles.emptyTitle}>Doodle</Text>
+        <Text style={styles.emptyHint}>→ {partnerName}</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
+const baseCardLarge = {
+  width: 164,
+  height: 164,
+  borderRadius: 36,
+  overflow: 'hidden' as const,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.3,
+  shadowRadius: 18,
+  elevation: 10,
+};
+
+const baseCardSmall = {
+  width: 80,
+  height: 80,
+  borderRadius: 20,
+  overflow: 'hidden' as const,
+};
+
 const styles = StyleSheet.create({
-  container: { borderRadius: 24, overflow: 'hidden' },
-  large: { width: 160, height: 160 },
-  small: { width: 80, height: 80, borderRadius: 16 },
-  emptySmall: {
-    backgroundColor: Colors.creamDark,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  empty: {
-    backgroundColor: Colors.creamDark,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-  },
-  emptyIcon: { fontSize: 36, marginBottom: 8 },
-  emptyTitle: {
-    fontSize: FontSize.sm,
-    color: Colors.charcoal,
-    fontFamily: FontFamily.semibold,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.regular,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  drawingPreview: {
+  cardLarge: baseCardLarge,
+  cardSmall: baseCardSmall,
+
+  drawingFill: {
     flex: 1,
-    backgroundColor: '#FFF8F0',
+    backgroundColor: Colors.dark,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 12,
-    gap: 4,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,48,0.18)',
   },
-  drawingEmoji: { fontSize: 32, marginBottom: 4 },
+  iconRing: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,184,48,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,48,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  drawingGlyph: { fontSize: 20 },
   drawingLabel: {
     fontSize: FontSize.sm,
-    color: Colors.charcoal,
-    fontFamily: FontFamily.semibold,
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
     textAlign: 'center',
+    lineHeight: 16,
   },
   drawingTap: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    fontFamily: FontFamily.regular,
+    fontSize: 10,
+    color: 'rgba(255,184,48,0.7)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
   },
+
+  // Empty large
+  emptyFill: {
+    flex: 1,
+    backgroundColor: Colors.dark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderStyle: 'dashed',
+  },
+  emptyGlyph: { fontSize: 20, opacity: 0.6 },
+  emptyTitle: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+  emptyHint: {
+    fontSize: 10,
+    color: Colors.yellow,
+    fontFamily: FontFamily.regular,
+    opacity: 0.6,
+  },
+
+  // Small empty
+  emptyFillSmall: {
+    flex: 1,
+    backgroundColor: Colors.dark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  smallGlyph: { fontSize: 20, opacity: 0.55 },
 });

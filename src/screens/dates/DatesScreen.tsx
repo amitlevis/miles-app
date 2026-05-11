@@ -14,9 +14,11 @@ import { Colors } from '../../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { CountdownWidget } from '../../components/widgets/CountdownWidget';
 import { PartnerHeader } from '../../components/PartnerHeader';
+import { TogetherModeBanner } from '../../components/TogetherModeBanner';
 import { Button } from '../../components/ui/Button';
 import { useCoupleStore } from '../../store/coupleStore';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { useTheme } from '../../theme/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -36,6 +38,7 @@ const UPCOMING = [
 
 export function DatesScreen() {
   const navigation = useNavigation<Nav>();
+  const theme = useTheme();
   const { partner, reunionDate, togetherMode, setReunionDate } = useCoupleStore();
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -45,7 +48,8 @@ export function DatesScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+      <TogetherModeBanner />
       <PartnerHeader />
       <ScrollView
         contentContainerStyle={styles.content}

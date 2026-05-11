@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Share,
   ScrollView,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
-import { Colors, Shadows } from '../../constants/colors';
-import { FontFamily, FontSize } from '../../constants/typography';
-import { Button } from '../../components/ui/Button';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors } from '../../constants/colors';
+import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { useCoupleStore } from '../../store/coupleStore';
 import { supabase } from '../../lib/supabase';
 
@@ -25,8 +26,25 @@ export function CoupleLinkScreen() {
   const [error, setError] = useState('');
   const { linkPartner } = useCoupleStore();
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(32)).current;
+  const glowAnim = useRef(new Animated.Value(0.5)).current;
+
   useEffect(() => {
     generateCode();
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
+    ]).start();
+
+    const glowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 2400, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.5, duration: 2400, useNativeDriver: true }),
+      ])
+    );
+    glowLoop.start();
+    return () => glowLoop.stop();
   }, []);
 
   const generateCode = async () => {
@@ -67,7 +85,6 @@ export function CoupleLinkScreen() {
         return;
       }
 
-      // Fetch partner profile
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -102,7 +119,6 @@ export function CoupleLinkScreen() {
     }
   };
 
-  // Check if partner has used our code
   const handleCheckStatus = async () => {
     setChecking(true);
     setError('');
@@ -148,188 +164,405 @@ export function CoupleLinkScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.emoji}>💌</Text>
-        <Text style={styles.title}>Connect with your partner</Text>
-        <Text style={styles.subtitle}>
-          Share your code with them, or enter theirs to link your accounts.
-        </Text>
+    <View style={styles.root}>
+      <LinearGradient
+        colors={['#0B0A09', '#16120D', '#231A0F', '#0B0A09']}
+        locations={[0, 0.3, 0.7, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-        {/* Your invite code */}
-        <View style={styles.codeSection}>
-          <Text style={styles.sectionLabel}>Your invite code</Text>
-          {codeLoading ? (
-            <View style={[styles.codeBox, styles.codeBoxLoading]}>
-              <ActivityIndicator color={Colors.yellow} />
+      {/* Ambient glow */}
+      <Animated.View
+        style={[styles.glow, { opacity: glowAnim }]}
+        pointerEvents="none"
+      >
+        <LinearGradient
+          colors={['rgba(255,184,48,0.22)', 'rgba(255,122,92,0.1)', 'transparent']}
+          style={{ flex: 1, borderRadius: 600 }}
+        />
+      </Animated.View>
+
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View
+            style={{
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+              width: '100%',
+              alignItems: 'center',
+            }}
+          >
+            {/* Header */}
+            <View style={styles.iconCircle}>
+              <Text style={styles.iconGlyph}>💌</Text>
             </View>
-          ) : (
-            <TouchableOpacity style={styles.codeBox} onPress={handleShare} activeOpacity={0.8}>
-              <Text style={styles.code}>{displayCode}</Text>
-              <Text style={styles.tapToShare}>Tap to share ↗</Text>
+
+            <Text style={styles.title}>Connect with{'\n'}your partner</Text>
+            <Text style={styles.subtitle}>
+              Share your code or enter theirs.{'\n'}You'll be linked instantly.
+            </Text>
+
+            {/* Your invite code card */}
+            <View style={styles.codeCard}>
+              <Text style={styles.codeLabel}>your invite code</Text>
+
+              {codeLoading ? (
+                <View style={styles.codeLoadingWrap}>
+                  <ActivityIndicator color={Colors.yellow} />
+                </View>
+              ) : (
+                <Text style={styles.code}>{displayCode}</Text>
+              )}
+
+              <View style={styles.codeActions}>
+                <TouchableOpacity
+                  style={styles.shareBtn}
+                  onPress={handleShare}
+                  activeOpacity={0.85}
+                  disabled={codeLoading}
+                >
+                  <Text style={styles.shareBtnText}>Share code ↗</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.checkBtn}
+                  onPress={handleCheckStatus}
+                  activeOpacity={0.8}
+                  disabled={checking}
+                >
+                  {checking ? (
+                    <ActivityIndicator size="small" color={Colors.yellow} />
+                  ) : (
+                    <Text style={styles.checkBtnText}>↺ Check status</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR ENTER THEIR CODE</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Partner code input */}
+            <TextInput
+              value={partnerCode}
+              onChangeText={(t) => {
+                setPartnerCode(t);
+                setError('');
+              }}
+              placeholder="MILES-XXXXXX"
+              placeholderTextColor="rgba(255,255,255,0.25)"
+              style={styles.input}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorIcon}>!</Text>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Connect button */}
+            <TouchableOpacity
+              onPress={handleConnect}
+              disabled={!partnerCode.trim() || linking}
+              activeOpacity={0.88}
+              style={[
+                styles.connectWrap,
+                (!partnerCode.trim() || linking) && styles.connectDisabled,
+              ]}
+            >
+              <LinearGradient
+                colors={['#FFD470', '#FFB830', '#FF8C42']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.connectGradient}
+              >
+                {linking ? (
+                  <ActivityIndicator color={Colors.dark} />
+                ) : (
+                  <Text style={styles.connectText}>Connect ♥</Text>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
-          )}
-        </View>
 
-        {/* Check if partner joined */}
-        <Button
-          label={checking ? 'Checking...' : 'Check if partner joined ↺'}
-          variant="ghost"
-          size="sm"
-          loading={checking}
-          onPress={handleCheckStatus}
-          style={styles.checkBtn}
-        />
+            {/* Privacy callout */}
+            <View style={styles.privacyCard}>
+              <Text style={styles.privacyIcon}>🔒</Text>
+              <Text style={styles.privacyText}>
+                Your connection is private and encrypted.{'\n'}
+                Only you two can see each other's data.
+              </Text>
+            </View>
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or enter their code</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <View style={styles.inputSection}>
-          <TextInput
-            value={partnerCode}
-            onChangeText={(t) => { setPartnerCode(t); setError(''); }}
-            placeholder="MILES-XXXXXX"
-            placeholderTextColor={Colors.placeholder}
-            style={styles.input}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
-        </View>
-
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
-
-        <Button
-          label="Connect ♥"
-          size="lg"
-          onPress={handleConnect}
-          loading={linking}
-          disabled={!partnerCode.trim()}
-          style={styles.btn}
-        />
-
-        <View style={styles.guarantee}>
-          <Text style={styles.guaranteeText}>
-            🔒 Your connection is private and encrypted. Only you two can see each other's data.
-          </Text>
-        </View>
-
-        <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+            <TouchableOpacity
+              onPress={handleSignOut}
+              style={styles.signOutBtn}
+              activeOpacity={0.6}
+            >
+              <Text style={styles.signOutText}>Sign out</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.cream },
-  content: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 48, paddingBottom: 40, alignItems: 'center' },
-  emoji: { fontSize: 64, marginBottom: 16 },
+  root: { flex: 1, backgroundColor: '#0B0A09' },
+  safe: { flex: 1 },
+  glow: {
+    position: 'absolute',
+    top: -200,
+    left: -150,
+    width: 600,
+    height: 600,
+  },
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,184,48,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,48,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  iconGlyph: { fontSize: 38 },
   title: {
     fontSize: FontSize['2xl'],
-    color: Colors.charcoal,
+    color: Colors.white,
     fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.black,
+    letterSpacing: -1,
     textAlign: 'center',
-    marginBottom: 12,
+    lineHeight: FontSize['2xl'] * 1.15,
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: FontSize.base,
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.45)',
     fontFamily: FontFamily.regular,
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 40,
+    marginBottom: 32,
   },
-  codeSection: { width: '100%', gap: 10, marginBottom: 16 },
-  sectionLabel: { fontSize: FontSize.sm, color: Colors.charcoal, fontFamily: FontFamily.semibold },
-  codeBox: {
-    backgroundColor: Colors.yellowPale,
-    borderRadius: 20,
-    padding: 24,
+
+  codeCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255,184,48,0.07)',
+    borderRadius: 28,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.yellow,
-    ...Shadows.yellow,
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,48,0.22)',
+    gap: 16,
+    marginBottom: 28,
+    shadowColor: Colors.yellow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 6,
   },
-  codeBoxLoading: { paddingVertical: 32 },
+  codeLabel: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255,184,48,0.65)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 1.8,
+  },
+  codeLoadingWrap: {
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   code: {
-    fontSize: FontSize['2xl'],
-    color: Colors.charcoal,
+    fontSize: 30,
+    color: Colors.yellow,
     fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.black,
     letterSpacing: 3,
   },
-  tapToShare: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.medium,
-    marginTop: 8,
+  codeActions: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    marginTop: 4,
   },
-  checkBtn: { marginBottom: 24 },
+  shareBtn: {
+    flex: 1,
+    backgroundColor: Colors.yellow,
+    borderRadius: 100,
+    paddingVertical: 12,
+    alignItems: 'center',
+    shadowColor: Colors.yellow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  shareBtnText: {
+    fontSize: FontSize.sm,
+    color: Colors.dark,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+  },
+  checkBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 100,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  checkBtnText: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.7)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    marginBottom: 24,
+    marginBottom: 18,
     gap: 12,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  dividerText: { fontSize: FontSize.sm, color: Colors.textMuted, fontFamily: FontFamily.regular },
-  inputSection: { width: '100%', marginBottom: 16 },
-  input: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    fontSize: FontSize.base,
-    color: Colors.charcoal,
-    fontFamily: FontFamily.medium,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    textAlign: 'center',
-    letterSpacing: 2,
-    ...Shadows.small,
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
+  dividerText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.35)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+    letterSpacing: 1.5,
+  },
+
+  input: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    fontSize: FontSize.md,
+    color: Colors.white,
+    fontFamily: FontFamily.semibold,
+    fontWeight: FontWeight.semibold,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    textAlign: 'center',
+    letterSpacing: 2.5,
+    marginBottom: 16,
+  },
+
   errorBox: {
-    backgroundColor: '#FFF0F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(248,113,113,0.1)',
     borderRadius: 12,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#FFCCCC',
+    borderColor: 'rgba(248,113,113,0.3)',
     width: '100%',
   },
-  errorText: {
-    fontSize: FontSize.sm,
-    color: '#CC3333',
-    fontFamily: FontFamily.medium,
-    textAlign: 'center',
-  },
-  btn: { width: '100%', marginBottom: 24 },
-  guarantee: {
-    backgroundColor: Colors.creamDark,
-    borderRadius: 16,
-    padding: 16,
-    width: '100%',
-    marginBottom: 32,
-  },
-  guaranteeText: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    fontFamily: FontFamily.regular,
+  errorIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(248,113,113,0.3)',
+    color: Colors.error,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+    fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
   },
+  errorText: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.error,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+
+  connectWrap: {
+    width: '100%',
+    borderRadius: 100,
+    overflow: 'hidden',
+    marginBottom: 24,
+    shadowColor: Colors.yellow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.42,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  connectDisabled: { opacity: 0.4 },
+  connectGradient: {
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  connectText: {
+    fontSize: FontSize.md,
+    color: Colors.dark,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 0.2,
+  },
+
+  privacyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    width: '100%',
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  privacyIcon: { fontSize: 20 },
+  privacyText: {
+    flex: 1,
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.5)',
+    fontFamily: FontFamily.regular,
+    lineHeight: 18,
+  },
+
   signOutBtn: { paddingVertical: 8 },
   signOutText: {
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
+    color: 'rgba(255,255,255,0.3)',
     fontFamily: FontFamily.regular,
     textDecorationLine: 'underline',
   },

@@ -17,7 +17,9 @@ import { PhotoWidget } from '../../components/widgets/PhotoWidget';
 import { DrawingWidget } from '../../components/widgets/DrawingWidget';
 import { useCoupleStore } from '../../store/coupleStore';
 import { Button } from '../../components/ui/Button';
+import { TogetherModeBanner } from '../../components/TogetherModeBanner';
 import { haversineDistance } from '../../utils/distance';
+import { useTheme } from '../../theme/ThemeContext';
 
 const THEMES = [
   { key: 'goldenHour', label: 'Golden Hour', colors: ['#FFB830', '#FF7A5C'] as const },
@@ -51,19 +53,20 @@ const WIDGET_OPTIONS = [
   },
   {
     key: 'photoEnabled' as const,
-    label: 'SnapPresence Photo',
-    desc: "Partner's latest photo",
+    label: 'Latest Photo',
+    desc: "Their most recent photo on your screen",
     accent: Colors.lavender,
   },
   {
     key: 'drawingEnabled' as const,
-    label: 'SketchPresence Drawing',
-    desc: "Partner's latest doodle",
+    label: 'Latest Doodle',
+    desc: "Their most recent drawing on your screen",
     accent: '#4A9ABF',
   },
 ];
 
 export function WidgetsScreen() {
+  const theme = useTheme();
   const { user, partner, reunionDate, togetherMode } = useCoupleStore();
   const [config, setConfig] = useState<WidgetConfig>({
     distanceEnabled: true,
@@ -87,7 +90,8 @@ export function WidgetsScreen() {
     setConfig((c) => ({ ...c, [key]: !c[key] }));
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+      <TogetherModeBanner />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

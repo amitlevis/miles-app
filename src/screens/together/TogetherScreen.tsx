@@ -13,7 +13,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { PartnerHeader } from '../../components/PartnerHeader';
+import { TogetherModeBanner } from '../../components/TogetherModeBanner';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { useTheme } from '../../theme/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -55,9 +57,11 @@ const GAME_PREVIEWS = [
 
 export function TogetherScreen() {
   const navigation = useNavigation<Nav>();
+  const theme = useTheme();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+      <TogetherModeBanner />
       <PartnerHeader />
       <ScrollView
         contentContainerStyle={styles.content}

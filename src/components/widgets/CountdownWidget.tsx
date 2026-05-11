@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Text, View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Shadows } from '../../constants/colors';
-import { FontFamily, FontSize } from '../../constants/typography';
+import { Colors } from '../../constants/colors';
+import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { daysUntil } from '../../utils/timeZone';
 
 interface CountdownWidgetProps {
@@ -22,6 +22,17 @@ export function CountdownWidget({
 }: CountdownWidgetProps) {
   const [days, setDays] = useState(reunionDate ? daysUntil(reunionDate) : null);
   const isSmall = size === 'small';
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      delay: 150,
+      useNativeDriver: true,
+      speed: 10,
+      bounciness: 6,
+    }).start();
+  }, []);
 
   useEffect(() => {
     if (!reunionDate || togetherMode) return;
@@ -29,109 +40,253 @@ export function CountdownWidget({
     return () => clearInterval(interval);
   }, [reunionDate, togetherMode]);
 
+  // ── Together mode — coral/gold gradient ─────────────────────────────────
   if (togetherMode) {
     return (
-      <LinearGradient
-        colors={['#FFD470', '#FF7A5C']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.container, isSmall ? styles.small : styles.large, Shadows.yellow]}
+      <Animated.View
+        style={[
+          isSmall ? styles.cardSmall : styles.cardLarge,
+          styles.shadowCoral,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
       >
-        <Text style={[styles.togetherEmoji, isSmall && { fontSize: 24 }]}>🫶</Text>
-        {!isSmall && (
-          <>
-            <Text style={styles.togetherLabel}>Together</Text>
-            <Text style={styles.togetherSub}>Right now ♥</Text>
-          </>
-        )}
-      </LinearGradient>
+        <LinearGradient
+          colors={['#FFD470', '#FF8C42', '#FF7A5C']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientFill}
+        >
+          <Text style={isSmall ? styles.togetherIconSmall : styles.togetherIcon}>
+            🫶
+          </Text>
+          {!isSmall && (
+            <>
+              <Text style={styles.togetherLabel}>together</Text>
+              <Text style={styles.togetherSub}>right now ♥</Text>
+            </>
+          )}
+        </LinearGradient>
+      </Animated.View>
     );
   }
 
+  // ── Empty state ──────────────────────────────────────────────────────────
   if (!reunionDate || days === null) {
     return (
-      <TouchableOpacity
-        onPress={onPress}
-        style={[styles.container, isSmall ? styles.small : styles.large, styles.empty, Shadows.small]}
-        activeOpacity={0.75}
+      <Animated.View
+        style={[
+          isSmall ? styles.cardSmall : styles.cardLarge,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
       >
-        <Text style={[styles.emptyIcon, isSmall && { fontSize: 22 }]}>📅</Text>
-        {!isSmall && <Text style={styles.emptyLabel}>Set a reunion date</Text>}
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onPress}
+          style={[styles.emptyFill, isSmall && styles.emptyFillSmall]}
+          activeOpacity={0.85}
+        >
+          {!isSmall ? (
+            <>
+              <View style={styles.emptyIconWrap}>
+                <Text style={styles.emptyIcon}>＋</Text>
+              </View>
+              <Text style={styles.emptyTitle}>Set reunion</Text>
+              <Text style={styles.emptyHint}>tap to add date</Text>
+            </>
+          ) : (
+            <Text style={styles.emptyIconSmall}>＋</Text>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
+  // ── Countdown ────────────────────────────────────────────────────────────
   return (
-    <LinearGradient
-      colors={['#C9B8E8', '#9B8AC4']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[styles.container, isSmall ? styles.small : styles.large, Shadows.medium]}
+    <Animated.View
+      style={[
+        isSmall ? styles.cardSmall : styles.cardLarge,
+        { transform: [{ scale: scaleAnim }] },
+      ]}
     >
-      <Text style={[styles.daysNumber, isSmall && styles.daysNumberSmall]}>{days}</Text>
-      <Text style={[styles.daysLabel, isSmall && styles.daysLabelSmall]}>
-        {isSmall ? 'days' : `day${days !== 1 ? 's' : ''} until`}
-      </Text>
-      {!isSmall && (
-        <Text style={styles.partnerName}>seeing {partnerName}</Text>
-      )}
-    </LinearGradient>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={onPress ? 0.85 : 1}
+        style={styles.darkFill}
+      >
+        {!isSmall ? (
+          <>
+            <Text style={styles.countLabel}>days until</Text>
+            <Text style={styles.daysNumber}>{days}</Text>
+            <Text style={styles.partnerLabel}>seeing {partnerName}</Text>
+          </>
+        ) : (
+          <View style={styles.smallContent}>
+            <Text style={styles.daysNumberSmall}>{days}</Text>
+            <Text style={styles.daysLabelSmall}>days</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
+const baseCardLarge = {
+  width: 164,
+  height: 164,
+  borderRadius: 36,
+  overflow: 'hidden' as const,
+};
+
+const baseCardSmall = {
+  width: 80,
+  height: 80,
+  borderRadius: 20,
+  overflow: 'hidden' as const,
+};
+
 const styles = StyleSheet.create({
-  container: {
-    borderRadius: 24,
+  cardLarge: {
+    ...baseCardLarge,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  cardSmall: {
+    ...baseCardSmall,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  shadowCoral: {
+    shadowColor: Colors.coral,
+    shadowOpacity: 0.36,
+  },
+
+  gradientFill: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 14,
   },
-  large: { width: 160, height: 160, padding: 16 },
-  small: { width: 80, height: 80, padding: 8, borderRadius: 16 },
-  togetherEmoji: { fontSize: 42, marginBottom: 4 },
+  darkFill: {
+    flex: 1,
+    backgroundColor: Colors.dark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+
+  // Together mode
+  togetherIcon: { fontSize: 36, marginBottom: 4 },
+  togetherIconSmall: { fontSize: 22 },
   togetherLabel: {
-    fontSize: FontSize.lg,
+    fontSize: FontSize.md,
     color: Colors.white,
     fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.black,
+    letterSpacing: -0.3,
   },
   togetherSub: {
-    fontSize: FontSize.sm,
-    color: Colors.white,
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.85)',
     fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
     marginTop: 2,
-    opacity: 0.9,
   },
-  emptyIcon: { fontSize: 36, marginBottom: 8 },
-  emptyLabel: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+
+  // Countdown
+  countLabel: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.4)',
     fontFamily: FontFamily.medium,
-    textAlign: 'center',
-  },
-  empty: {
-    backgroundColor: Colors.creamDark,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
+    fontWeight: FontWeight.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   daysNumber: {
-    fontSize: FontSize['3xl'],
-    color: Colors.white,
+    fontSize: 52,
+    color: Colors.yellow,
     fontFamily: FontFamily.bold,
-    lineHeight: 44,
+    fontWeight: FontWeight.black,
+    letterSpacing: -2,
+    lineHeight: 56,
   },
-  daysNumberSmall: { fontSize: FontSize.xl, lineHeight: 28 },
-  daysLabel: {
-    fontSize: FontSize.sm,
-    color: Colors.white,
-    fontFamily: FontFamily.medium,
-    opacity: 0.9,
-  },
-  daysLabelSmall: { fontSize: FontSize.xs },
-  partnerName: {
-    fontSize: FontSize.sm,
-    color: Colors.white,
+  partnerLabel: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.55)',
     fontFamily: FontFamily.regular,
-    opacity: 0.85,
     marginTop: 4,
+  },
+  smallContent: { alignItems: 'center' },
+  daysNumberSmall: {
+    fontSize: FontSize.lg,
+    color: Colors.yellow,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.black,
+    letterSpacing: -0.5,
+    lineHeight: 22,
+  },
+  daysLabelSmall: {
+    fontSize: 8,
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+
+  // Empty state
+  emptyFill: {
+    flex: 1,
+    backgroundColor: Colors.dark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderStyle: 'dashed',
+    padding: 14,
+    gap: 4,
+  },
+  emptyFillSmall: { padding: 0 },
+  emptyIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyIcon: {
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '300',
+    lineHeight: 24,
+  },
+  emptyIconSmall: {
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '300',
+  },
+  emptyTitle: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+  emptyHint: {
+    fontSize: 10,
+    color: Colors.yellow,
+    fontFamily: FontFamily.regular,
+    opacity: 0.6,
   },
 });

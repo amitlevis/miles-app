@@ -29,6 +29,7 @@ import { useCoupleStore } from '../../store/coupleStore';
 import { haversineDistance } from '../../utils/distance';
 import { getPartnerTime, getPartnerDate } from '../../utils/timeZone';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { animateThemeTransition } from '../../theme/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -198,7 +199,10 @@ export function HomeScreen() {
 
             <TouchableOpacity
               style={styles.endTogetherBtn}
-              onPress={() => setTogetherMode(false)}
+              onPress={() => {
+                animateThemeTransition();
+                setTogetherMode(false);
+              }}
               activeOpacity={0.8}
             >
               <Text style={styles.endTogetherText}>We're apart again</Text>
@@ -264,7 +268,10 @@ export function HomeScreen() {
         {/* Together banner */}
         <TouchableOpacity
           style={styles.togetherBannerWrap}
-          onPress={() => setTogetherMode(true)}
+          onPress={() => {
+            animateThemeTransition();
+            setTogetherMode(true);
+          }}
           activeOpacity={0.85}
         >
           <LinearGradient

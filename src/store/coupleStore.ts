@@ -25,6 +25,7 @@ export interface CoupleStore {
   goodbyeDate: Date | null;
   togetherMode: boolean;
   distanceMiles: number | null;
+  hasSeenOnboarding: boolean;
 
   setUser: (user: User) => void;
   setPartner: (partner: Partner) => void;
@@ -32,6 +33,7 @@ export interface CoupleStore {
   setGoodbyeDate: (date: Date | null) => void;
   setTogetherMode: (together: boolean) => void;
   setDistance: (miles: number) => void;
+  setHasSeenOnboarding: (seen: boolean) => void;
   login: (user: User) => void;
   logout: () => void;
   linkPartner: (partner: Partner) => void;
@@ -46,6 +48,7 @@ export const useCoupleStore = create<CoupleStore>((set) => ({
   goodbyeDate: null,
   togetherMode: false,
   distanceMiles: null,
+  hasSeenOnboarding: false,
 
   setUser: (user) => set({ user }),
   setPartner: (partner) => set({ partner }),
@@ -53,6 +56,7 @@ export const useCoupleStore = create<CoupleStore>((set) => ({
   setGoodbyeDate: (goodbyeDate) => set({ goodbyeDate }),
   setTogetherMode: (togetherMode) => set({ togetherMode }),
   setDistance: (distanceMiles) => set({ distanceMiles }),
+  setHasSeenOnboarding: (hasSeenOnboarding) => set({ hasSeenOnboarding }),
 
   login: (user) => set({ isAuthenticated: true, user }),
   logout: () =>
@@ -65,6 +69,7 @@ export const useCoupleStore = create<CoupleStore>((set) => ({
       goodbyeDate: null,
       togetherMode: false,
       distanceMiles: null,
+      hasSeenOnboarding: false,
     }),
   linkPartner: (partner) => set({ partner, isLinked: true }),
 }));
