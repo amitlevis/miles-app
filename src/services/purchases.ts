@@ -21,14 +21,21 @@
  */
 
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import type {
   PurchasesPackage,
   CustomerInfo,
 } from 'react-native-purchases';
 
-// TODO: replace with real keys (or pull from expo-constants extra)
-const REVENUECAT_IOS_KEY = '';
-const REVENUECAT_ANDROID_KEY = '';
+const extra = (Constants.expoConfig?.extra ?? {}) as {
+  revenueCatIosKey?: string;
+  revenueCatAndroidKey?: string;
+};
+
+const REVENUECAT_IOS_KEY =
+  extra.revenueCatIosKey ?? process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? '';
+const REVENUECAT_ANDROID_KEY =
+  extra.revenueCatAndroidKey ?? process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? '';
 
 export type EntitlementKey = 'premium' | 'duo' | 'coach';
 export interface EntitlementState {

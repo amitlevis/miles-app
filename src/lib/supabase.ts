@@ -1,11 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import type { Database } from './database.types';
 
-const SUPABASE_URL = 'https://zowwuzepcttifosnjxki.supabase.co';
+// Pull config from app.config.js → expoConfig.extra → which reads from .env.
+// See .env.example for the required variables.
+const extra = (Constants.expoConfig?.extra ?? {}) as {
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+};
+
+const SUPABASE_URL = extra.supabaseUrl ?? process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpvd3d1emVwY3R0aWZvc25qeGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzYyOTQsImV4cCI6MjA5MzY1MjI5NH0._tyHclJqyX4MSKONNIZb5RvZqr1xhLv_-Jjzwvq_pKs';
+  extra.supabaseAnonKey ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  // Fail loudly in development; in production the splash will hang but we
+  // log enough to diagnose what's missing.
+  console.error(
+    '[supabase] Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY.',
+    'Make sure .env exists (see .env.example).'
+  );
+}
 
 const storage =
   Platform.OS === 'web'

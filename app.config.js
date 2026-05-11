@@ -1,0 +1,75 @@
+/**
+ * Expo app config. Replaces app.json so we can pull secrets from .env via
+ * process.env. Anything under `expo.extra` is available at runtime through
+ * `Constants.expoConfig.extra`.
+ *
+ * Required .env variables (see .env.example):
+ *   EXPO_PUBLIC_SUPABASE_URL
+ *   EXPO_PUBLIC_SUPABASE_ANON_KEY
+ *
+ * Optional:
+ *   EXPO_PUBLIC_REVENUECAT_IOS_KEY
+ *   EXPO_PUBLIC_REVENUECAT_ANDROID_KEY
+ *   EXPO_PUBLIC_SENTRY_DSN
+ */
+
+module.exports = ({ config }) => ({
+  ...config,
+  expo: {
+    name: 'Miles',
+    slug: 'miles-app',
+    version: '1.0.0',
+    orientation: 'portrait',
+    userInterfaceStyle: 'automatic',
+    assetBundlePatterns: ['**/*'],
+    web: {
+      bundler: 'metro',
+      output: 'single',
+    },
+    ios: {
+      supportsTablet: false,
+      bundleIdentifier: 'com.miles.app',
+      infoPlist: {
+        NSLocationWhenInUseUsageDescription:
+          'Miles uses your location to show your distance from your partner.',
+        NSCameraUsageDescription:
+          'Miles uses your camera to send photos to your partner.',
+        NSPhotoLibraryUsageDescription:
+          'Miles accesses your photos so you can share moments with your partner.',
+        NSMicrophoneUsageDescription:
+          'Miles uses your microphone for voice messages.',
+      },
+    },
+    android: {
+      package: 'com.miles.app',
+      permissions: [
+        'ACCESS_FINE_LOCATION',
+        'ACCESS_COARSE_LOCATION',
+        'CAMERA',
+        'READ_EXTERNAL_STORAGE',
+        'WRITE_EXTERNAL_STORAGE',
+        'RECORD_AUDIO',
+        'VIBRATE',
+      ],
+    },
+    plugins: [
+      'expo-camera',
+      'expo-image-picker',
+      'expo-notifications',
+      [
+        'expo-location',
+        {
+          locationAlwaysAndWhenInUsePermission:
+            'Miles uses your location to show how far apart you are from your partner.',
+        },
+      ],
+    ],
+    extra: {
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      revenueCatIosKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY,
+      revenueCatAndroidKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY,
+      sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    },
+  },
+});
