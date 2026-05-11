@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../constants/typography';
 import { Avatar } from './ui/Avatar';
@@ -12,6 +13,7 @@ interface PartnerHeaderProps {
 }
 
 export function PartnerHeader({ onAvatarPress, dark = false }: PartnerHeaderProps) {
+  const navigation = useNavigation<any>();
   const { user, partner } = useCoupleStore();
   const [partnerTime, setPartnerTime] = useState('');
 
@@ -25,10 +27,13 @@ export function PartnerHeader({ onAvatarPress, dark = false }: PartnerHeaderProp
 
   if (!user || !partner) return null;
 
+  const goToSettings = () => navigation.navigate('Settings');
+  const handleAvatarPress = onAvatarPress ?? goToSettings;
+
   return (
     <View style={[styles.container, dark && styles.containerDark]}>
       <View style={styles.side}>
-        <TouchableOpacity onPress={onAvatarPress} activeOpacity={0.8}>
+        <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8}>
           <Avatar name={user.name} uri={user.avatar} size={40} online />
         </TouchableOpacity>
         <View>
@@ -48,8 +53,16 @@ export function PartnerHeader({ onAvatarPress, dark = false }: PartnerHeaderProp
           </Text>
           <Text style={[styles.name, dark && styles.nameDark]}>{partner.name}</Text>
         </View>
-        <TouchableOpacity onPress={onAvatarPress} activeOpacity={0.8}>
+        <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8}>
           <Avatar name={partner.name} uri={partner.avatar} size={40} online />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={goToSettings}
+          activeOpacity={0.7}
+          style={styles.gearBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+        >
+          <Text style={[styles.gearIcon, dark && styles.gearIconDark]}>⚙</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -97,4 +110,18 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', paddingHorizontal: 8 },
   heart: { fontSize: 14, color: Colors.coral },
   heartDark: { color: 'rgba(255,122,92,0.7)' },
+  gearBtn: {
+    marginLeft: 4,
+    width: 28,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gearIcon: {
+    fontSize: 19,
+    color: Colors.textMuted,
+  },
+  gearIconDark: {
+    color: 'rgba(255,255,255,0.45)',
+  },
 });

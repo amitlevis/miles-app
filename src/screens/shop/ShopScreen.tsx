@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { useCoupleStore } from '../../store/coupleStore';
+import { useEntitlements, useEntitlementsStore } from '../../store/entitlementsStore';
+import {
+  fetchOffering,
+  purchasePackage,
+  isConfigured,
+} from '../../services/purchases';
+import type { PurchasesPackage } from 'react-native-purchases';
 
 type PlanKey = 'free' | 'premium' | 'duo';
 
@@ -161,16 +168,93 @@ const REAL_GIFTS = [
 export function ShopScreen() {
   const navigation = useNavigation();
   const { partner } = useCoupleStore();
-  const [currentPlan, setCurrentPlan] = useState<PlanKey>('free');
-  const [activeTab, setActiveTab] = useState<'plans' | 'gifts' | 'real'>('plans');
+  const entitlements = useEntitlements();
+  const restoreEntitlements = useEntitlementsStore((s) => s.restore);
+  const applyEntitlements = useEntitlementsStore((s) => s.apply);
 
-  const handleGetPlan = (planKey: PlanKey) => {
-    setCurrentPlan(planKey);
-    Alert.alert(
-      'Plan selected',
-      'In the final app this connects to the App Store subscription flow. Your selection is saved locally for now.',
-      [{ text: 'Got it', style: 'default' }]
+  // Derive current plan from real entitlements
+  const currentPlan: PlanKey = entitlements.duo
+    ? 'duo'
+    : entitlements.premium
+      ? 'premium'
+      : 'free';
+
+  const [activeTab, setActiveTab] = useState<'plans' | 'gifts' | 'real'>('plans');
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+  const [purchasing, setPurchasing] = useState<PlanKey | null>(null);
+
+  // Load available packages from RevenueCat (no-op if not configured)
+  useEffect(() => {
+    fetchOffering()
+      .then((pkgs) => {
+        if (pkgs) setPackages(pkgs);
+      })
+      .catch(() => {});
+  }, []);
+
+  const findPackage = (planKey: PlanKey): PurchasesPackage | undefined => {
+    return packages.find((p) =>
+      planKey === 'premium'
+        ? p.identifier.includes('premium')
+        : planKey === 'duo'
+          ? p.identifier.includes('duo')
+          : false
     );
+  };
+
+  const handleGetPlan = async (planKey: PlanKey) => {
+    if (planKey === 'free') return;
+
+    if (!isConfigured()) {
+      Alert.alert(
+        'Coming soon',
+        'In-app subscriptions are being set up. We\'ll launch the App Store flow here once it\'s ready.',
+        [{ text: 'Got it', style: 'default' }]
+      );
+      return;
+    }
+
+    const pkg = findPackage(planKey);
+    if (!pkg) {
+      Alert.alert(
+        'Not available',
+        `Couldn't find the ${planKey} subscription. Try again in a moment.`
+      );
+      return;
+    }
+
+    setPurchasing(planKey);
+    try {
+      const newEntitlements = await purchasePackage(pkg);
+      applyEntitlements(newEntitlements);
+      Alert.alert(
+        '✦ Welcome to Premium',
+        'Your subscription is active. All unlocked features are now available.'
+      );
+    } catch (e: any) {
+      if (e?.userCancelled) {
+        // user cancelled — silent
+      } else {
+        Alert.alert(
+          'Purchase failed',
+          e?.message ?? 'Something went wrong. Please try again.'
+        );
+      }
+    } finally {
+      setPurchasing(null);
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      await restoreEntitlements();
+      Alert.alert(
+        'Restored',
+        'If you previously purchased Premium or Duo, it\'s now active on this device.'
+      );
+    } catch (e: any) {
+      Alert.alert("Couldn't restore", e?.message ?? 'Try again.');
+    }
   };
 
   return (
@@ -416,6 +500,15 @@ export function ShopScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* Restore purchases */}
+            <TouchableOpacity
+              style={styles.restoreLink}
+              onPress={handleRestore}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.restoreLinkText}>Restore purchases</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -964,6 +1057,19 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontFamily: FontFamily.bold,
     fontWeight: FontWeight.bold,
+  },
+
+  restoreLink: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  restoreLinkText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+    textDecorationLine: 'underline',
   },
 
   // Virtual gifts

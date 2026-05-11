@@ -14,9 +14,12 @@ import { GamesScreen } from '../screens/together/GamesScreen';
 import { DatePlannerScreen } from '../screens/dates/DatePlannerScreen';
 import { MemoryJarScreen } from '../screens/memories/MemoryJarScreen';
 import { ShopScreen } from '../screens/shop/ShopScreen';
+import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { Colors } from '../constants/colors';
 import { subscribeToCouple, unsubscribeChannel } from '../services/realtime';
 import { fetchTogetherState } from '../services/togetherState';
+import { registerForPushNotifications } from '../services/notifications';
+import { useEntitlementsStore } from '../store/entitlementsStore';
 import * as Haptics from 'expo-haptics';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -31,6 +34,7 @@ export type RootStackParamList = {
   DatePlanner: undefined;
   MemoryJar: undefined;
   Shop: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -57,6 +61,13 @@ export function AppNavigator() {
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             location: null,
           });
+
+          // Fire-and-forget push registration. If the user denies permission
+          // we just don't get pushes; nothing else breaks.
+          registerForPushNotifications(profile.id).catch(() => {});
+
+          // Hydrate paid entitlements (no-op if RevenueCat isn't configured)
+          useEntitlementsStore.getState().init(profile.id).catch(() => {});
         }
 
         const { data: couple } = await supabase
@@ -184,6 +195,7 @@ export function AppNavigator() {
           <Stack.Screen name="DatePlanner" component={DatePlannerScreen} />
           <Stack.Screen name="MemoryJar" component={MemoryJarScreen} />
           <Stack.Screen name="Shop" component={ShopScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
         </>
       )}
     </Stack.Navigator>
