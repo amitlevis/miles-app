@@ -30,6 +30,14 @@ import { haversineDistance } from '../../utils/distance';
 import { getPartnerTime, getPartnerDate } from '../../utils/timeZone';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { animateThemeTransition } from '../../theme/ThemeContext';
+import { sendMood as sendMoodRemote } from '../../services/moods';
+import { sendHeartbeat } from '../../services/heartbeats';
+import {
+  pickOrCapturePhoto,
+  uploadAndSharePhoto,
+  fetchLatestPhotoFromPartner,
+} from '../../services/photos';
+import { setTogetherStateRemote } from '../../services/togetherState';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -65,7 +73,7 @@ const DATE_PRESETS = [
 
 export function HomeScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, partner, reunionDate, togetherMode, distanceMiles, setTogetherMode, setReunionDate } =
+  const { user, partner, coupleId, reunionDate, togetherMode, distanceMiles, setTogetherMode, setReunionDate } =
     useCoupleStore();
 
   const [partnerTime, setPartnerTime] = useState('');
@@ -109,6 +117,16 @@ export function HomeScreen() {
     moodGlow.setValue(0);
     Animated.timing(moodGlow, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     setTimeout(() => setMoodSent(null), 3000);
+
+    // Fire-and-forget remote send (the UI already optimistically updated).
+    if (coupleId && user?.id) {
+      sendMoodRemote({
+        coupleId,
+        senderId: user.id,
+        mood: mood.label,
+        emoji: mood.emoji,
+      }).catch((err) => console.warn('[mood] send failed:', err.message));
+    }
   };
 
   const startHeartbeat = async () => {
@@ -122,9 +140,19 @@ export function HomeScreen() {
     );
     heartbeatLoop.current.start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    // First pulse goes to the partner immediately
+    if (coupleId && user?.id) {
+      sendHeartbeat({ coupleId, senderId: user.id }).catch(() => {});
+    }
+
     hapticTimer.current = setInterval(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 200);
+      // Subsequent pulses (rate-limited inside sendHeartbeat)
+      if (coupleId && user?.id) {
+        sendHeartbeat({ coupleId, senderId: user.id }).catch(() => {});
+      }
     }, 1000);
   };
 
@@ -137,20 +165,39 @@ export function HomeScreen() {
     }
   };
 
-  const handlePickPhoto = async () => {
+  const sharePhoto = async (useCamera: boolean) => {
     setShowPhotoOptions(false);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri);
+    const localUri = await pickOrCapturePhoto(useCamera);
+    if (!localUri) return;
+    // Show the local photo immediately so the user gets instant feedback.
+    setPhotoUri(localUri);
+    if (!coupleId || !user?.id) return;
+    try {
+      const { displayUrl } = await uploadAndSharePhoto({
+        coupleId,
+        senderId: user.id,
+        localUri,
+        tag: 'good_morning',
+      });
+      // Replace the local URI with the signed URL once upload completes.
+      setPhotoUri(displayUrl);
+    } catch (err: any) {
+      console.warn('[photo] upload failed:', err.message);
+    }
   };
 
-  const handleTakePhoto = async () => {
-    setShowPhotoOptions(false);
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri);
-  };
+  const handlePickPhoto = () => sharePhoto(false);
+  const handleTakePhoto = () => sharePhoto(true);
+
+  // On mount, fetch the latest photo from the partner so it appears on launch.
+  useEffect(() => {
+    if (!coupleId || !user?.id) return;
+    fetchLatestPhotoFromPartner({ coupleId, selfId: user.id })
+      .then((result) => {
+        if (result) setPhotoUri(result.displayUrl);
+      })
+      .catch((err) => console.warn('[photo] fetch latest failed:', err.message));
+  }, [coupleId, user?.id]);
 
   if (!user || !partner) return null;
 
@@ -202,6 +249,15 @@ export function HomeScreen() {
               onPress={() => {
                 animateThemeTransition();
                 setTogetherMode(false);
+                if (coupleId && user?.id) {
+                  setTogetherStateRemote({
+                    coupleId,
+                    selfId: user.id,
+                    active: false,
+                  }).catch((err) =>
+                    console.warn('[together] sync failed:', err.message)
+                  );
+                }
               }}
               activeOpacity={0.8}
             >
@@ -271,6 +327,13 @@ export function HomeScreen() {
           onPress={() => {
             animateThemeTransition();
             setTogetherMode(true);
+            if (coupleId && user?.id) {
+              setTogetherStateRemote({
+                coupleId,
+                selfId: user.id,
+                active: true,
+              }).catch((err) => console.warn('[together] sync failed:', err.message));
+            }
           }}
           activeOpacity={0.85}
         >

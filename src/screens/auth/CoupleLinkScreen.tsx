@@ -103,13 +103,16 @@ export function CoupleLinkScreen() {
           .single();
 
         if (partnerProfile) {
-          linkPartner({
-            id: partnerProfile.id,
-            name: partnerProfile.name,
-            avatar: partnerProfile.avatar_url,
-            timeZone: 'UTC',
-            location: null,
-          });
+          linkPartner(
+            {
+              id: partnerProfile.id,
+              name: partnerProfile.name,
+              avatar: partnerProfile.avatar_url,
+              timeZone: 'UTC',
+              location: null,
+            },
+            couple.id
+          );
         }
       }
     } catch (e: any) {

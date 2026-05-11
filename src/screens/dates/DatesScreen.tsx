@@ -6,10 +6,15 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import { addMonths, addWeeks, format } from 'date-fns';
 import { Colors } from '../../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { CountdownWidget } from '../../components/widgets/CountdownWidget';
@@ -19,6 +24,7 @@ import { Button } from '../../components/ui/Button';
 import { useCoupleStore } from '../../store/coupleStore';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useTheme } from '../../theme/ThemeContext';
+import { sealCapsule } from '../../services/timeCapsules';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -36,11 +42,49 @@ const UPCOMING = [
   { icon: '🎮', label: 'Games night', date: 'Sun, 6 PM', confirmed: false },
 ];
 
+const CAPSULE_PRESETS: { label: string; date: () => Date }[] = [
+  { label: 'In 1 month', date: () => addMonths(new Date(), 1) },
+  { label: 'In 3 months', date: () => addMonths(new Date(), 3) },
+  { label: 'In 6 months', date: () => addMonths(new Date(), 6) },
+  { label: 'In 1 year', date: () => addMonths(new Date(), 12) },
+];
+
 export function DatesScreen() {
   const navigation = useNavigation<Nav>();
   const theme = useTheme();
-  const { partner, reunionDate, togetherMode, setReunionDate } = useCoupleStore();
+  const { partner, coupleId, user, reunionDate, togetherMode, setReunionDate } =
+    useCoupleStore();
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showCapsule, setShowCapsule] = useState(false);
+  const [capsuleBody, setCapsuleBody] = useState('');
+  const [capsulePreset, setCapsulePreset] = useState<number>(2); // default 6mo
+  const [sealingCapsule, setSealingCapsule] = useState(false);
+
+  const handleSealCapsule = async () => {
+    if (!capsuleBody.trim() || !coupleId || !user?.id) return;
+    setSealingCapsule(true);
+    try {
+      await sealCapsule({
+        coupleId,
+        senderId: user.id,
+        body: capsuleBody,
+        openAt: CAPSULE_PRESETS[capsulePreset].date(),
+      });
+      setShowCapsule(false);
+      setCapsuleBody('');
+      Alert.alert(
+        'Sealed ♥',
+        `Your time capsule is locked. ${partner?.name ?? 'They'} can open it on ${format(
+          CAPSULE_PRESETS[capsulePreset].date(),
+          'MMM d, yyyy'
+        )}.`
+      );
+    } catch (e: any) {
+      Alert.alert('Couldn\'t seal', e.message ?? 'Try again.');
+    } finally {
+      setSealingCapsule(false);
+    }
+  };
 
   const sampleReunion = reunionDate ?? new Date(Date.now() + 47 * 24 * 60 * 60 * 1000);
   const daysUntil = Math.ceil(
@@ -221,12 +265,84 @@ export function DatesScreen() {
                 Seal messages & videos to be opened on a future date.
               </Text>
             </View>
-            <Button label="Create" variant="secondary" size="sm" onPress={() => {}} />
+            <Button
+              label="Create"
+              variant="secondary"
+              size="sm"
+              onPress={() => setShowCapsule(true)}
+            />
           </LinearGradient>
         </View>
 
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* ── Time Capsule modal ───────────────────────────────────────────── */}
+      <Modal visible={showCapsule} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Seal a time capsule</Text>
+            <Text style={styles.modalSub}>
+              Write something for {partner?.name ?? 'them'} to read in the future.
+              They won't see it until the date you pick.
+            </Text>
+
+            <TextInput
+              value={capsuleBody}
+              onChangeText={setCapsuleBody}
+              placeholder="What do you want them to find later?"
+              placeholderTextColor={Colors.placeholder}
+              style={styles.capsuleInput}
+              multiline
+              numberOfLines={6}
+              textAlignVertical="top"
+              autoFocus
+            />
+
+            <Text style={styles.capsuleWhenLabel}>Open it…</Text>
+            <View style={styles.capsulePresetRow}>
+              {CAPSULE_PRESETS.map((p, i) => {
+                const active = i === capsulePreset;
+                return (
+                  <TouchableOpacity
+                    key={p.label}
+                    style={[
+                      styles.capsulePreset,
+                      active && styles.capsulePresetActive,
+                    ]}
+                    onPress={() => setCapsulePreset(i)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.capsulePresetText,
+                        active && styles.capsulePresetTextActive,
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.capsuleActions}>
+              <Button
+                label="Cancel"
+                variant="ghost"
+                onPress={() => setShowCapsule(false)}
+              />
+              <Button
+                label={sealingCapsule ? 'Sealing…' : 'Seal capsule ♥'}
+                onPress={handleSealCapsule}
+                disabled={!capsuleBody.trim() || sealingCapsule}
+                loading={sealingCapsule}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -516,5 +632,99 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: FontFamily.regular,
     lineHeight: 18,
+  },
+
+  // Time Capsule modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: Colors.cream,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 22,
+    paddingBottom: 36,
+    paddingTop: 12,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: Colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  modalTitle: {
+    fontSize: FontSize.xl,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+    marginBottom: 6,
+    letterSpacing: -0.3,
+  },
+  modalSub: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.regular,
+    lineHeight: 20,
+    marginBottom: 18,
+  },
+  capsuleInput: {
+    backgroundColor: Colors.white,
+    borderRadius: 18,
+    padding: 18,
+    fontSize: FontSize.base,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.regular,
+    lineHeight: 22,
+    minHeight: 140,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    marginBottom: 16,
+  },
+  capsuleWhenLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.semibold,
+    fontWeight: FontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  capsulePresetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 18,
+  },
+  capsulePreset: {
+    backgroundColor: Colors.white,
+    borderRadius: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  capsulePresetActive: {
+    backgroundColor: Colors.yellow,
+    borderColor: Colors.yellow,
+  },
+  capsulePresetText: {
+    fontSize: FontSize.sm,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
+  capsulePresetTextActive: {
+    color: Colors.dark,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+  },
+  capsuleActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
   },
 });

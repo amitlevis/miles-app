@@ -7,9 +7,12 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { addDays, format } from 'date-fns';
 import { Colors } from '../../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { useCoupleStore } from '../../store/coupleStore';
@@ -123,6 +126,38 @@ export function DatePlannerScreen() {
           d.tags.some((t) => selectedMoods.includes(t))
         );
 
+  /**
+   * "Add to calendar" — opens Google Calendar's event-create URL in the
+   * browser, pre-filled with title/description. Works cross-platform without
+   * needing native calendar permissions.
+   */
+  const handleAddToCalendar = async (idea: DateIdea) => {
+    const start = addDays(new Date(), 1);
+    start.setHours(19, 0, 0, 0); // 7pm tomorrow
+    const end = new Date(start.getTime() + 90 * 60 * 1000);
+
+    const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
+    const url =
+      'https://calendar.google.com/calendar/r/eventedit?' +
+      'text=' +
+      encodeURIComponent(`${idea.title} with ${partner?.name ?? 'partner'}`) +
+      '&details=' +
+      encodeURIComponent(idea.desc + '\n\n— via Miles') +
+      '&dates=' +
+      `${fmt(start)}/${fmt(end)}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('Calendar', "Couldn't open your calendar app. Copy the date manually?");
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (e: any) {
+      Alert.alert("Couldn't open calendar", e.message ?? 'Try again.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       {/* Header */}
@@ -235,6 +270,7 @@ export function DatePlannerScreen() {
               <TouchableOpacity
                 style={styles.suggestionCalBtn}
                 activeOpacity={0.85}
+                onPress={() => handleAddToCalendar(aiSuggestion)}
               >
                 <Text style={styles.suggestionCalText}>Add to calendar</Text>
               </TouchableOpacity>
@@ -275,7 +311,11 @@ export function DatePlannerScreen() {
                   <Text style={styles.ideaMetaText}>💰 {idea.budget}</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.addBtn} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.addBtn}
+                activeOpacity={0.8}
+                onPress={() => handleAddToCalendar(idea)}
+              >
                 <Text style={styles.addBtnText}>+</Text>
               </TouchableOpacity>
             </View>

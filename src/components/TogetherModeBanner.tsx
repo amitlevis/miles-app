@@ -13,10 +13,11 @@ import { Colors } from '../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../constants/typography';
 import { useCoupleStore } from '../store/coupleStore';
 import { animateThemeTransition } from '../theme/ThemeContext';
+import { setTogetherStateRemote } from '../services/togetherState';
 
 export function TogetherModeBanner() {
   const navigation = useNavigation<any>();
-  const { togetherMode, setTogetherMode, partner } = useCoupleStore();
+  const { togetherMode, setTogetherMode, partner, coupleId, user } = useCoupleStore();
   const pulseAnim = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
@@ -37,6 +38,13 @@ export function TogetherModeBanner() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     animateThemeTransition();
     setTogetherMode(false);
+    if (coupleId && user?.id) {
+      setTogetherStateRemote({
+        coupleId,
+        selfId: user.id,
+        active: false,
+      }).catch((err) => console.warn('[together] sync failed:', err.message));
+    }
   };
 
   const goHome = () => {

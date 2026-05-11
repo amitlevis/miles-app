@@ -15,6 +15,10 @@ import { DatePlannerScreen } from '../screens/dates/DatePlannerScreen';
 import { MemoryJarScreen } from '../screens/memories/MemoryJarScreen';
 import { ShopScreen } from '../screens/shop/ShopScreen';
 import { Colors } from '../constants/colors';
+import { subscribeToCouple, unsubscribeChannel } from '../services/realtime';
+import { fetchTogetherState } from '../services/togetherState';
+import * as Haptics from 'expo-haptics';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -32,7 +36,8 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function AppNavigator() {
-  const { isAuthenticated, isLinked, login, logout, linkPartner, setReunionDate } = useCoupleStore();
+  const { isAuthenticated, isLinked, user, coupleId, login, logout, linkPartner, setReunionDate, setTogetherMode } =
+    useCoupleStore();
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -71,17 +76,27 @@ export function AppNavigator() {
             .single();
 
           if (partnerProfile) {
-            linkPartner({
-              id: partnerProfile.id,
-              name: partnerProfile.name,
-              avatar: partnerProfile.avatar_url,
-              timeZone: 'UTC',
-              location: null,
-            });
+            linkPartner(
+              {
+                id: partnerProfile.id,
+                name: partnerProfile.name,
+                avatar: partnerProfile.avatar_url,
+                timeZone: 'UTC',
+                location: null,
+              },
+              couple.id
+            );
           }
 
           if (couple.reunion_date) {
             setReunionDate(new Date(couple.reunion_date));
+          }
+
+          // Pick up the persisted together-state from the server so both
+          // partners see the same mode.
+          const togetherSnap = await fetchTogetherState(couple.id);
+          if (togetherSnap) {
+            setTogetherMode(togetherSnap.active);
           }
         }
       } catch (err) {
@@ -106,6 +121,34 @@ export function AppNavigator() {
 
     return () => subscription.unsubscribe();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Couple Realtime subscription ─────────────────────────────────────────
+  // Listens for incoming moods / heartbeats / together-state changes from
+  // the partner. Self-events are filtered out in `subscribeToCouple`.
+  useEffect(() => {
+    if (!isLinked || !coupleId || !user?.id) return;
+
+    const channel: RealtimeChannel = subscribeToCouple({
+      coupleId,
+      selfId: user.id,
+      onHeartbeat: () => {
+        // Partner sent a heartbeat — give a haptic pulse
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 220);
+      },
+      onMood: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      },
+      onTogetherStateChange: (state) => {
+        // Sync the local togetherMode when partner toggles
+        setTogetherMode(state.active);
+      },
+    });
+
+    return () => {
+      unsubscribeChannel(channel);
+    };
+  }, [isLinked, coupleId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authLoading) {
     return (

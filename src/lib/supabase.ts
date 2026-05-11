@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import type { Database } from './database.types';
 
 const SUPABASE_URL = 'https://zowwuzepcttifosnjxki.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -15,7 +16,7 @@ const storage =
         removeItem: (key: string) => SecureStore.deleteItemAsync(key),
       };
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage,
     autoRefreshToken: true,

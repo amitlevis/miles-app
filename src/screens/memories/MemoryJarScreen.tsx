@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,40 +16,79 @@ import { Colors } from '../../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { Button } from '../../components/ui/Button';
 import { useCoupleStore } from '../../store/coupleStore';
+import {
+  fetchPartnerNotes,
+  leaveNote,
+  markNoteOpened,
+  type MemoryJarNote,
+} from '../../services/notes';
+import { formatDistanceToNow } from 'date-fns';
 
-const MOCK_NOTES = [
-  { id: '1', opened: false, preview: 'A little something for when you need it...' },
-  { id: '2', opened: false, preview: 'I recorded something for you.' },
-  { id: '3', opened: false, preview: 'For whenever you miss me...' },
-];
-
-type Note = typeof MOCK_NOTES[0];
+type Note = MemoryJarNote;
 
 export function MemoryJarScreen() {
   const navigation = useNavigation();
-  const { partner } = useCoupleStore();
-  const [notes, setNotes] = useState(MOCK_NOTES);
+  const { partner, coupleId, user } = useCoupleStore();
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const [writing, setWriting] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [openedNote, setOpenedNote] = useState<Note | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const revealAnim = useRef(new Animated.Value(0)).current;
 
-  const openNote = (note: Note) => {
+  const loadNotes = useCallback(async () => {
+    if (!coupleId || !user?.id) return;
+    setLoading(true);
+    try {
+      const data = await fetchPartnerNotes({ coupleId, selfId: user.id });
+      setNotes(data);
+    } catch (e: any) {
+      setError(e.message ?? 'Could not load notes.');
+    } finally {
+      setLoading(false);
+    }
+  }, [coupleId, user?.id]);
+
+  useEffect(() => {
+    loadNotes();
+  }, [loadNotes]);
+
+  const openNote = async (note: Note) => {
     revealAnim.setValue(0);
     setOpenedNote(note);
-    setNotes((prev) =>
-      prev.map((n) => (n.id === note.id ? { ...n, opened: true } : n))
-    );
     Animated.timing(revealAnim, { toValue: 1, duration: 700, useNativeDriver: true }).start();
+
+    if (!note.opened_at) {
+      try {
+        const updated = await markNoteOpened(note.id);
+        setNotes((prev) =>
+          prev.map((n) => (n.id === note.id ? updated : n))
+        );
+      } catch (e) {
+        // Non-fatal; the user already sees the note.
+        console.warn('[notes] mark opened failed');
+      }
+    }
   };
 
-  const sendNote = () => {
-    if (!noteText.trim()) return;
-    setWriting(false);
-    setNoteText('');
+  const sendNote = async () => {
+    if (!noteText.trim() || !coupleId || !user?.id) return;
+    setSending(true);
+    setError(null);
+    try {
+      await leaveNote({ coupleId, senderId: user.id, body: noteText });
+      setWriting(false);
+      setNoteText('');
+    } catch (e: any) {
+      setError(e.message ?? 'Could not send. Try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
-  const unopened = notes.filter((n) => !n.opened).length;
+  const unopened = notes.filter((n) => !n.opened_at).length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -81,13 +121,15 @@ export function MemoryJarScreen() {
               <View style={styles.openedGlow} />
               <Text style={styles.openedLetter}>💌</Text>
               <Text style={styles.openedFrom}>
-                from {partner?.name}
+                from {partner?.name ?? 'them'}
               </Text>
               <Text style={styles.openedBody}>
-                "Wherever you are right now, I'm thinking of you. Every moment apart just makes me more grateful for every moment together. You are my favorite person."
+                {openedNote.body}
               </Text>
               <View style={styles.openedDivider} />
-              <Text style={styles.openedTimestamp}>left 3 days ago</Text>
+              <Text style={styles.openedTimestamp}>
+                left {formatDistanceToNow(new Date(openedNote.created_at))} ago
+              </Text>
             </LinearGradient>
             <Button
               label="Close"
@@ -116,6 +158,9 @@ export function MemoryJarScreen() {
               textAlignVertical="top"
               autoFocus
             />
+            {error ? (
+              <Text style={styles.errorText}>{error}</Text>
+            ) : null}
             <View style={styles.writeActions}>
               <Button
                 label="Cancel"
@@ -125,7 +170,8 @@ export function MemoryJarScreen() {
               <Button
                 label="Send to jar ♥"
                 onPress={sendNote}
-                disabled={!noteText.trim()}
+                disabled={!noteText.trim() || sending}
+                loading={sending}
               />
             </View>
           </View>
@@ -164,45 +210,63 @@ export function MemoryJarScreen() {
               </Text>
             </View>
 
-            <View style={styles.noteList}>
-              {notes.map((note) => (
-                <TouchableOpacity
-                  key={note.id}
-                  style={[
-                    styles.noteCard,
-                    note.opened && styles.noteCardOpened,
-                  ]}
-                  onPress={() => !note.opened && openNote(note)}
-                  activeOpacity={note.opened ? 1 : 0.8}
-                >
-                  <View
-                    style={[
-                      styles.noteIconWrap,
-                      note.opened
-                        ? styles.noteIconWrapOpened
-                        : styles.noteIconWrapSealed,
-                    ]}
-                  >
-                    <Text style={styles.noteIcon}>
-                      {note.opened ? '💌' : '🎁'}
-                    </Text>
-                  </View>
-                  <View style={styles.noteInfo}>
-                    <Text style={styles.noteTitle}>
-                      {note.opened ? 'Opened' : 'A surprise is waiting...'}
-                    </Text>
-                    <Text style={styles.notePreview}>
-                      {note.opened ? note.preview : 'Tap to open'}
-                    </Text>
-                  </View>
-                  {!note.opened && (
-                    <View style={styles.openChip}>
-                      <Text style={styles.openChipText}>Open</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+            {loading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={Colors.yellow} />
+              </View>
+            ) : notes.length === 0 ? (
+              <View style={styles.emptyJarCard}>
+                <Text style={styles.emptyJarGlyph}>🌱</Text>
+                <Text style={styles.emptyJarTitle}>
+                  Nothing here yet
+                </Text>
+                <Text style={styles.emptyJarSub}>
+                  When {partner?.name ?? 'they'} leaves you a surprise, it'll appear here.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.noteList}>
+                {notes.map((note) => {
+                  const opened = !!note.opened_at;
+                  return (
+                    <TouchableOpacity
+                      key={note.id}
+                      style={[styles.noteCard, opened && styles.noteCardOpened]}
+                      onPress={() => openNote(note)}
+                      activeOpacity={0.8}
+                    >
+                      <View
+                        style={[
+                          styles.noteIconWrap,
+                          opened
+                            ? styles.noteIconWrapOpened
+                            : styles.noteIconWrapSealed,
+                        ]}
+                      >
+                        <Text style={styles.noteIcon}>
+                          {opened ? '💌' : '🎁'}
+                        </Text>
+                      </View>
+                      <View style={styles.noteInfo}>
+                        <Text style={styles.noteTitle}>
+                          {opened
+                            ? `Opened ${formatDistanceToNow(new Date(note.opened_at!))} ago`
+                            : 'A surprise is waiting...'}
+                        </Text>
+                        <Text style={styles.notePreview} numberOfLines={1}>
+                          {opened ? note.body : 'Tap to open'}
+                        </Text>
+                      </View>
+                      {!opened && (
+                        <View style={styles.openChip}>
+                          <Text style={styles.openChipText}>Open</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             {/* Add note CTA */}
             <TouchableOpacity
@@ -377,6 +441,41 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.medium,
   },
 
+  loadingWrap: {
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  emptyJarCard: {
+    marginHorizontal: 16,
+    backgroundColor: Colors.creamDark,
+    borderRadius: 22,
+    padding: 28,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: 20,
+  },
+  emptyJarGlyph: { fontSize: 48 },
+  emptyJarTitle: {
+    fontSize: FontSize.base,
+    color: Colors.charcoal,
+    fontFamily: FontFamily.bold,
+    fontWeight: FontWeight.bold,
+  },
+  emptyJarSub: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontFamily: FontFamily.regular,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  errorText: {
+    fontSize: FontSize.sm,
+    color: Colors.error,
+    fontFamily: FontFamily.medium,
+    fontWeight: FontWeight.medium,
+  },
   noteList: { paddingHorizontal: 16, gap: 10, marginBottom: 20 },
   noteCard: {
     backgroundColor: Colors.white,

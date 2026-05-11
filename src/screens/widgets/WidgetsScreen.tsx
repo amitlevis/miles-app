@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/colors';
@@ -20,6 +21,7 @@ import { Button } from '../../components/ui/Button';
 import { TogetherModeBanner } from '../../components/TogetherModeBanner';
 import { haversineDistance } from '../../utils/distance';
 import { useTheme } from '../../theme/ThemeContext';
+import { fetchWidgetConfig, saveWidgetConfig } from '../../services/widgetConfig';
 
 const THEMES = [
   { key: 'goldenHour', label: 'Golden Hour', colors: ['#FFB830', '#FF7A5C'] as const },
@@ -77,6 +79,49 @@ export function WidgetsScreen() {
     lockScreen: true,
     homeScreen: true,
   });
+  const [saving, setSaving] = useState(false);
+
+  // Hydrate config from server on mount
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchWidgetConfig(user.id)
+      .then((remote) => {
+        if (remote) {
+          setConfig({
+            distanceEnabled: remote.distance_enabled,
+            countdownEnabled: remote.countdown_enabled,
+            photoEnabled: remote.photo_enabled,
+            drawingEnabled: remote.drawing_enabled,
+            theme: remote.theme,
+            lockScreen: remote.lock_screen,
+            homeScreen: remote.home_screen,
+          });
+        }
+      })
+      .catch((e) => console.warn('[widgetConfig] fetch failed:', e.message));
+  }, [user?.id]);
+
+  const handleSave = async () => {
+    if (!user?.id) return;
+    setSaving(true);
+    try {
+      await saveWidgetConfig({
+        user_id: user.id,
+        distance_enabled: config.distanceEnabled,
+        countdown_enabled: config.countdownEnabled,
+        photo_enabled: config.photoEnabled,
+        drawing_enabled: config.drawingEnabled,
+        theme: config.theme,
+        lock_screen: config.lockScreen,
+        home_screen: config.homeScreen,
+      });
+      Alert.alert('Saved', 'Your widget settings have been saved.');
+    } catch (e: any) {
+      Alert.alert('Couldn\'t save', e.message ?? 'Try again in a moment.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const distance =
     user?.location && partner?.location
@@ -244,7 +289,8 @@ export function WidgetsScreen() {
 
         <Button
           label="Save Widget Settings"
-          onPress={() => {}}
+          onPress={handleSave}
+          loading={saving}
           style={styles.saveBtn}
         />
 

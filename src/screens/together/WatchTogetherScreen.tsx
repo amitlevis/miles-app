@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { Colors } from '../../constants/colors';
 import { FontFamily, FontSize, FontWeight } from '../../constants/typography';
 import { useCoupleStore } from '../../store/coupleStore';
@@ -30,6 +31,7 @@ export function WatchTogetherScreen() {
   const [url, setUrl] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
+  const [paused, setPaused] = useState(false);
 
   const startSession = async () => {
     if (!url.trim()) return;
@@ -37,6 +39,14 @@ export function WatchTogetherScreen() {
     await new Promise((r) => setTimeout(r, 1500));
     setSyncing(false);
     setSessionActive(true);
+    setPaused(false);
+  };
+
+  const togglePause = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPaused((p) => !p);
+    // TODO (Phase 3): broadcast pause/resume to partner via Realtime channel
+    // so both devices' video players stay in sync.
   };
 
   return (
@@ -106,10 +116,12 @@ export function WatchTogetherScreen() {
             <View style={styles.activeActions}>
               <TouchableOpacity
                 style={styles.pauseBtn}
-                onPress={() => {}}
+                onPress={togglePause}
                 activeOpacity={0.85}
               >
-                <Text style={styles.pauseBtnText}>⏸  Pause both</Text>
+                <Text style={styles.pauseBtnText}>
+                  {paused ? '▶  Resume both' : '⏸  Pause both'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.stopBtn}
