@@ -21,4 +21,5 @@ yarn-error.*
 .env.production
 .vercel
 
-.vercel
+# Claude Code: locally installed skill content (pinned by skills-lock.json)
+.agents/
